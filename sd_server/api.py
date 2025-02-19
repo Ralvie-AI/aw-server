@@ -234,6 +234,10 @@ class ServerAPI:
         # Update the headers with the params.
         if params:
             headers.update(params)
+
+        if "accept-language" in data:
+            headers.update({"accept-language": data.get('accept-language')})
+            
         return req.post(
             self._url(endpoint),
             data=bytes(json.dumps(data), "utf8"),
