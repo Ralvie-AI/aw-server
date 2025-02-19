@@ -26,7 +26,7 @@ from requests.packages.urllib3.util.retry import Retry
 
 from sd_core.cache import cache_user_credentials
 from sd_core.cache import *
-from sd_core.util import encrypt_uuid, load_key, is_internet_connected
+from sd_core.util import encrypt_uuid, load_key, is_internet_connected, stop_module
 from sd_server.const import PROTOCOL, HOST, CACHE_KEY
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
@@ -426,6 +426,8 @@ class ServerAPI:
                     elif response_data.get("code") == 'RCE0219':
                         event_ids = [obj['event_id'] for obj in events]
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
+                        stop_module('sd-watcher-afk')
+                        stop_module('sd-watcher-window')
                         return {"status": "success"}
                     else:
                         logger.error(f"Unexpected response code: {response_data.get('code')}")
