@@ -230,6 +230,10 @@ class ServerAPI:
          @return The response from the request as a : class : ` req. Response `
         """
         headers = {"Content-type": "application/json", "charset": "utf-8"}
+
+        if "accept-language" in data:
+                    headers.update({"accept-language": data.get('accept-language')})
+
         # Update the headers with the params.
         if params:
             headers.update(params)
@@ -1264,6 +1268,3 @@ def group_events_by_application(events):
     result_list = list(grouped_events.values())
 
     return result_list
-
-
-
