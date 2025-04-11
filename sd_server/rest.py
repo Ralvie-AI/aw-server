@@ -1,21 +1,16 @@
+import sys
 import getpass
 import json
 import traceback
 from functools import wraps
 from threading import Lock
 from typing import Dict
-import sys
-import pytz
-from dateutil.parser import parse
-from sd_core.launch_start import delete_launch_app, launch_app, check_startup_status, set_autostart_registry
-from sd_core.util import authenticate, is_internet_connected, reset_user
-import pandas as pd
 from datetime import datetime, timedelta, date, time
+
 import iso8601
-from sd_core import schema, db_cache
-from sd_core.models import Event
-from sd_core.cache import *
-from sd_query.exceptions import QueryException
+import pytz
+import jwt
+from flask_restx import Api, Resource, fields
 from flask import (
     Blueprint,
     current_app,
@@ -23,8 +18,13 @@ from flask import (
     make_response,
     request,
 )
-from flask_restx import Api, Resource, fields
-import jwt
+
+from sd_core.launch_start import delete_launch_app, launch_app, check_startup_status, set_autostart_registry
+from sd_core.util import authenticate, is_internet_connected, reset_user
+from sd_core import schema, db_cache
+from sd_core.models import Event
+from sd_core.cache import *
+from sd_query.exceptions import QueryException
 from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
@@ -971,8 +971,15 @@ class SaveSettings(Resource):
                 # Save settings to the database
                 result = current_app.api.save_settings(
                     code=code, value=value_json)
-                
-                return result, 200  # Return the result dictionary with a 200 status code
+                print(result)
+                # Prepare response dictionary
+                result_dict = {
+                    "id": result.id,  # Assuming id is the primary key of SettingsModel
+                    "code": result.code,
+                    "value": value_json  # Use the converted value
+                }
+
+                return result_dict, 200  # Return the result dictionary with a 200 status code
             else:
                 # Handle the case where 'code' or 'value' is missing in the JSON body
                 return {"message": "Both 'code' and 'value' must be provided"}, 400
@@ -1207,42 +1214,48 @@ class Status(Resource):
 class Idletime(Resource):
     @api.doc(security="Bearer")
     def get(self):
-        """
-        Manage the idle time state by starting or stopping the 'sd-watcher-afk' module.
-
-        The 'status' query parameter controls whether the module is started or stopped:
-        @return a JSON object with a message indicating the new state.
-        """
 
         try:
+            # Retrieve the status of the "sd-watcher-afk" module
             module = manager.module_status("sd-watcher-afk")
-            status = request.json.get("status")
-            print(type(status))
-
+            status = request.args.get("status") 
+            print(f"status:{status}")
             if module is None or "is_alive" not in module:
                 return {"message": "Module status could not be retrieved"}, 500
-            # Check the status argument and start/stop the module accordingly
-            if status:
-                print(111111111)
+
+            state = False  # Default state
+
+            # Validate the status parameter and take action accordingly
+            if status == True:
+                logger.info(111111111111)
                 if not module["is_alive"]:
-                    manager.start("sd-watcher-afk")
+                    manager.start("sd-watcher-afk")  # Start the module if it's not alive
                     message = "Idle time has started"
+                    state = True
+                    logger.info(111111111111)
                 else:
                     message = "Idle time is already running"
-            else:
-                print(22222222)
+            elif status == False:
+                logger.info(2222222222222)
                 if module["is_alive"]:
-                    manager.stop("sd-watcher-afk")
+                    manager.stop("sd-watcher-afk")  # Stop the module if it's alive
                     message = "Idle time has stopped"
+                    state = False
+                    logger.info(2222222222222)
                 else:
                     message = "Idle time is already stopped"
 
             # Save the new idle time state in the settings
-            return {"message": message}, 200
+            current_app.api.save_settings("idle_time", state)
+
+            # Return a success response with the appropriate message
+            return {"message": "Successful"}, 200
 
         except Exception as e:
+            # Log any errors and return a generic error message
             logger.error(f"Error handling idle time: {str(e)}")
             return {"message": "An error occurred while managing idle time."}, 500
+
 
 
 
@@ -1355,38 +1368,44 @@ class SyncServer(Resource):
             return {"message": "Internal server error"}, 500
 
 
-# @api.route("/0/launchOnStart")
-# class LaunchOnStart(Resource):
-#     @api.doc(security="Bearer")
-#     def get(self):
-#         status = request.args.get("status", type=str)  # Expecting status as a query parameter
+@api.route("/0/launchOnStart")
+class LaunchOnStart(Resource):
+    @api.doc(security="Bearer")
+    def get(self):
+        status = request.args.get("status", type=str)  # Expecting status as a query parameter
 
-#         if status is None:
-#             return {"error": "Status is required in the request query."}, 400
+        if status is None:
+            return {"error": "Status is required in the request query."}, 400
 
-#         if sys.platform == "darwin":
-#             if status:
-#                 launch_app()  # Ensure this function is defined
-#                 current_app.api.save_settings("launch", status)
-#                 return {"message": "Launch on start enabled."}, 200
-#             else:
-               
-#                 delete_launch_app()  # Ensure this function is defined
-#                 current_app.api.save_settings("launch", status)
-#                 return {"message": "Launch on start disabled."}, 200
+        # Convert status to boolean
+        status = status.lower() in ["start"]
 
-#         elif sys.platform == "win32":
-#             if status:
-#                 set_autostart_registry(autostart=True)  # Ensure this function is defined
-#                 current_app.api.save_settings("launch", status)
-#                 return {"message": "Launch on start enabled."}, 200
-#             else:
-#                 set_autostart_registry(autostart=False)  # Ensure this function is defined
-#                 current_app.api.save_settings("launch", status)
-#                 return {"message": "Launch on start disabled."}, 200
+        if sys.platform == "darwin":
+            if status:
+                launch_app()  # Ensure this function is defined
+                state = True
+                current_app.api.save_settings("launch", state)
+                return {"message": "Launch on start enabled."}, 200
+            else:
+                state = False
+                delete_launch_app()  # Ensure this function is defined
+                current_app.api.save_settings("launch", state)
+                return {"message": "Launch on start disabled."}, 200
 
-#         else:
-#             return {"error": "Unsupported platform."}, 400  # Handle unsupported platforms
+        elif sys.platform == "win32":
+            if status:
+                state = True
+                set_autostart_registry(autostart=True)  # Ensure this function is defined
+                current_app.api.save_settings("launch", state)
+                return {"message": "Launch on start enabled."}, 200
+            else:
+                state = False
+                set_autostart_registry(autostart=False)  # Ensure this function is defined
+                current_app.api.save_settings("launch", state)
+                return {"message": "Launch on start disabled."}, 200
+
+        else:
+            return {"error": "Unsupported platform."}, 400  # Handle unsupported platforms
 
 # Refresh token
 
@@ -1470,16 +1489,7 @@ class initdb(Resource):
             print("Success")
 
 
-@api.route("/0/health")
+@api.route("/0/server_status")
 class server_status(Resource):
     def get(self):
         return 200
-
-
-@api.route("/0/sundialinfo")
-class status_check(Resource):
-    def get(self):
-        cache_key = "Sundial"
-        cached_credentials = cache_user_credentials("Sundial")
-        if cached_credentials:
-            return {"email": cached_credentials.get("email"), "comapny_id":cached_credentials.get("companyId"), "user_id": cached_credentials.get("userId"),"version":"2.0.0","server":"staging"}, 200
