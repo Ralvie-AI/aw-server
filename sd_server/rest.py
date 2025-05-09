@@ -17,6 +17,7 @@ from flask import (
     jsonify,
     make_response,
     request,
+    send_from_directory,
 )
 
 from sd_core.launch_start import delete_launch_app, launch_app, check_startup_status, set_autostart_registry
@@ -1495,3 +1496,10 @@ class initdb(Resource):
 class server_status(Resource):
     def get(self):
         return 200
+
+@api.route("/0/lottie_js")
+class LottieJs(Resource):    
+
+    def get(self):
+        logger.info(f"api.blueprint_setup.app.static_folder: {api.blueprint_setup.app.static_folder}")
+        return send_from_directory(api.blueprint_setup.app.static_folder, "js/lottie.min.js")
