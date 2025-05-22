@@ -27,6 +27,14 @@ static_folder = os.path.join(app_folder, "static")
 root = Blueprint("root", __name__, url_prefix="/")
 
 
+def is_valid_keyring_file():
+    cfg_file = os.path.join(os.getenv('LOCALAPPDATA'), "Python Keyring", "keyring_pass.cfg")
+    if os.path.exists(cfg_file):
+        with open(cfg_file, 'rb') as f:
+            chunk = f.read(1024)
+        return b'\x00' in chunk, cfg_file
+    return False, None
+
 class AWFlask(Flask):
     def __init__(
         self,
@@ -192,6 +200,10 @@ def _start(
      @param cors_origins - List of origins to allow cross - origin requests
      @param custom_static - Dict of custom static variables to pass to
     """
+    is_valid, file_name = is_valid_keyring_file()
+    if is_valid:
+        os.unlink(file_name)
+
     app = AWFlask(
         host,
         testing=testing,
