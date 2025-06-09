@@ -1,9 +1,9 @@
 import logging
 import os
+import platform
 from datetime import datetime, timedelta
 from typing import Dict, List
-import webbrowser
-import sd_datastore
+
 import flask.json.provider
 from sd_datastore import Datastore
 from flask import (
@@ -14,6 +14,7 @@ from flask import (
 )
 from flask_cors import CORS
 
+import sd_datastore
 from . import rest
 from .api import ServerAPI
 from .custom_static import get_custom_static_blueprint
@@ -29,6 +30,7 @@ root = Blueprint("root", __name__, url_prefix="/")
 
 def is_valid_keyring_file():
     cfg_file = os.path.join(os.getenv('LOCALAPPDATA'), "Python Keyring", "keyring_pass.cfg")
+    logger.info(f"Checking keyring file {cfg_file}")
     if os.path.exists(cfg_file):
         with open(cfg_file, 'rb') as f:
             chunk = f.read(1024)
@@ -200,9 +202,12 @@ def _start(
      @param cors_origins - List of origins to allow cross - origin requests
      @param custom_static - Dict of custom static variables to pass to
     """
-    is_valid, file_name = is_valid_keyring_file()
-    if is_valid:
-        os.unlink(file_name)
+
+    if platform.system() == "Windows":
+        is_file_corrupted, file_name = is_valid_keyring_file()
+        if is_file_corrupted:
+            logger.info(f"{file_name} was invalid, so it was deleted.")
+            os.unlink(file_name)
 
     app = AWFlask(
         host,
