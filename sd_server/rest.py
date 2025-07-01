@@ -28,7 +28,7 @@ from sd_query.exceptions import QueryException
 from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
-from sd_qt.manager import Manager
+from sd_main.manager import Manager
 
 application_cache_key = "application_cache"
 manager = Manager()
