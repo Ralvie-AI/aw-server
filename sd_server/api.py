@@ -429,9 +429,9 @@ class ServerAPI:
                         return {"status": "success"}
                     elif response_data.get("code") == 'RCE0219':
                         event_ids = [obj['event_id'] for obj in events]
-                        self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
-                        stop_module('sd-watcher-afk')
-                        stop_module('sd-watcher-window')
+                        self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
+                        # stop_module('sd-watcher-afk')
+                        # stop_module('sd-watcher-window')
                         return {"status": "success"}
                     else:
                         logger.error(f"Unexpected response code: {response_data.get('code')}")
