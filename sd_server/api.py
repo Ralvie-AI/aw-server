@@ -33,6 +33,7 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
+from sd_server.utils import get_uuid_address
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -206,12 +207,15 @@ class ServerAPI:
          @return A : class : ` Response `
         """
         max_address = hex(uuid.getnode())
-        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address}
+        uuid_address = get_uuid_address()
+        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
+                    "X-SUNDIAL-UUID": uuid_address}
         # Update the headers with the params.
         if params:
             headers.update(params)
         return req.get(self._url(endpoint), headers=headers)
 
+        
     @always_raise_for_request_errors
     def _post(
 
@@ -230,7 +234,15 @@ class ServerAPI:
          @return The response from the request as a : class : ` req. Response `
         """
         max_address = hex(uuid.getnode())
-        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address}
+        if data.get('userName'):
+            uuid_address = get_uuid_address(data.get('userName'))
+        else:
+            uuid_address = get_uuid_address()
+
+        if max_address:
+            headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
+                       "X-SUNDIAL-UUID": uuid_address}        
+
         # Update the headers with the params.
         if params:
             headers.update(params)
@@ -263,7 +275,10 @@ class ServerAPI:
          @return The response from the request as a : class : ` req. Response `
         """
         max_address = hex(uuid.getnode())
-        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address}
+        uuid_address = get_uuid_address()
+        if max_address:
+            headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
+                       "X-SUNDIAL-UUID": uuid_address}
         # Update the headers with the params.
         if params:
             headers.update(params)
@@ -293,7 +308,9 @@ class ServerAPI:
          @return The response from the request as a : class : ` req. Response `
         """
         max_address = hex(uuid.getnode())
-        headers = {"X-SUNDIAL-MAC-ADDRESS": max_address}
+        uuid_address = get_uuid_address()
+        if uuid_address:
+            headers = {"X-SUNDIAL-MAC-ADDRESS": max_address, "X-SUNDIAL-UUID": uuid_address}
         payload = {}
         # Update the headers with the params.
         if params:
@@ -314,9 +331,12 @@ class ServerAPI:
          @param data - The data to send as the body of the request.
 
          @return A : class : ` req. Response ` object
-        """
+        """        
+        uuid_address = get_uuid_address()
         max_address = hex(uuid.getnode())
-        headers = {"Content-type": "application/json", "X-SUNDIAL-MAC-ADDRESS": max_address}
+        if uuid_address:
+            headers = {"Content-type": "application/json", "X-SUNDIAL-MAC-ADDRESS": max_address, "X-SUNDIAL-UUID": uuid_address}
+
         if params:
             headers.update(params)
         return req.delete(self._url(endpoint), data=json.dumps(data), headers=headers)
@@ -350,6 +370,8 @@ class ServerAPI:
 
          @return The response from the server. If there was an error the response will contain the error
         """
+        
+        
         endpoint = f"/web/user/authorize"
         return self._post(endpoint , user)
 
@@ -402,6 +424,10 @@ class ServerAPI:
             userId = load_key("userId")
             logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
+
+            if cached_credentials is None:
+                logger.info(f"There was no keychain_item_exists.")
+
             companyId = cached_credentials.get('companyId')
             token = cached_credentials.get('token')
 
