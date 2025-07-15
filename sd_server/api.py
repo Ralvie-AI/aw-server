@@ -415,6 +415,18 @@ class ServerAPI:
 
             events = data.get("events", [])
             if events:
+                if len(events) == 1:
+                    current_now = datetime.now(timezone.utc)
+                    logger.info(f"current_now {current_now}")
+                    event = events[0]  
+                    timestamp = parser.isoparse(event["timestamp"])
+                    logger.info(f"timestamp {timestamp}")
+                    result = (current_now - timestamp).total_seconds()
+                    logger.info(f"result {result}")
+        
+                    if not result > 30:
+                        return {"status": "success"}
+                    
                 payload = {"userId": userId, "companyId": companyId, "events": events}
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
@@ -1230,7 +1242,7 @@ class RalvieServerQueue(threading.Thread):
                 logger.warning("No internet connection. Waiting to retry...")
 
             # Wait for the defined interval before trying again, respecting stop events.
-            self.wait(300)
+            self.wait(600)
 
 
 def group_events_by_application(events):
