@@ -33,7 +33,8 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import get_uuid_address
+from sd_server.utils import get_uuid_address, send_to_gui
+
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -236,8 +237,11 @@ class ServerAPI:
         max_address = hex(uuid.getnode())
         if data.get('userName'):
             uuid_address = get_uuid_address(data.get('userName'))
+            logger.info(f"uuid_address  {uuid_address}")
+            logger.info(f"uuid_address email   {data.get('userName')}")
         else:
             uuid_address = get_uuid_address()
+            logger.info(f"no email param uuid_address  {uuid_address}")
 
         if max_address:
             headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
@@ -420,6 +424,7 @@ class ServerAPI:
         # return self._post(endpoint, data,{"Authorization" : token})
 
     def sync_events_to_ralvie(self):
+
         try:
             userId = load_key("userId")
             logger.info(f"User ID from load_key: {userId}")
@@ -457,8 +462,10 @@ class ServerAPI:
                         event_ids = [obj['event_id'] for obj in events]
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
                         logger.info(f"Updated the events of mismatched mac address to 2.")
-                        # stop_module('sd-watcher-afk')
-                        # stop_module('sd-watcher-window')
+                        logger.info(f"Events {events}")
+                        logger.info(f"Events type {type(events)}")
+                        logger.info(f"response_data {response_data}")
+                        send_to_gui("fail")
                         return {"status": "success"}
                     else:
                         logger.error(f"Unexpected response code: {response_data.get('code')}")
@@ -1207,6 +1214,7 @@ class RalvieServerQueue(threading.Thread):
     def _try_connect(self) -> bool:
         try:
             cached_credentials = cache_user_credentials(CACHE_KEY)
+            print("cached_credentials ", cached_credentials)
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
                 user_key = load_key("user_key")
@@ -1239,11 +1247,12 @@ class RalvieServerQueue(threading.Thread):
 
         while not self.should_stop():
             # Check internet connection and attempt to sync
+            print("is_internet_connected()", is_internet_connected())
             if is_internet_connected():
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
                     self._try_connect()
-
+                print("self.connected ", self.connected)
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync events.")
                     try:
