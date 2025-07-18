@@ -8,6 +8,7 @@ import logging
 
 import win32file
 import pywintypes
+from cryptography.fernet import Fernet, InvalidToken
 
 from sd_core.cache import keychain_item_exists, get_password
 from sd_server.const import CACHE_KEY
@@ -15,11 +16,6 @@ from sd_server.const import CACHE_KEY
 logger = logging.getLogger(__name__)
 
 PIPE_NAME = r'\\.\pipe\AppSocket'
-
-import base64
-import hashlib
-from cryptography.fernet import Fernet
-from cryptography.fernet import Fernet, InvalidToken
 
 def decrypt_system_uuid(encrypted_token, password):
     """

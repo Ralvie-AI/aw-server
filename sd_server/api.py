@@ -460,7 +460,19 @@ class ServerAPI:
                         return {"status": "success"}
                     elif response_data.get("code") == 'RCE0219':
                         event_ids = [obj['event_id'] for obj in events]
-                        self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
+
+                        if response_data.get('data').get('events'):
+                            success_event_ids = response_data.get('data').get('events')
+                            failed_event_ids =  set(event_ids) - set(success_event_ids)
+                            
+                            if failed_event_ids:
+                                self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
+                            
+                            if success_event_ids:
+                                self.db.update_server_sync_status(list_of_ids=success_event_ids, new_status=1)
+                        else:
+                            self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
+
                         logger.info(f"Updated the events of mismatched mac address to 2.")
                         logger.info(f"Events {events}")
                         logger.info(f"Events type {type(events)}")
