@@ -27,7 +27,7 @@ from requests.packages.urllib3.util.retry import Retry
 from sd_core.cache import cache_user_credentials
 from sd_core.cache import *
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected, stop_module
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY
+from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
 from sd_core.models import Event
@@ -53,7 +53,7 @@ def get_device_id() -> str:
         uuid = str(uuid4())
         with open(path, "w") as f:
             f.write(uuid)
-        return uuid
+        return uuid 
 
 def create_retry_session(retries=3, backoff_factor=0.3):
     session = requests.Session()
@@ -418,13 +418,13 @@ class ServerAPI:
                 if len(events) == 1:
                     current_now = datetime.now(timezone.utc)
                     logger.info(f"current_now {current_now}")
-                    event = events[0]  
+                    event = events[0]
                     timestamp = parser.isoparse(event["timestamp"])
                     logger.info(f"timestamp {timestamp}")
                     result = (current_now - timestamp).total_seconds()
                     logger.info(f"result {result}")
         
-                    if not result > 30:
+                    if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
                         return {"status": "success"}
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events}
@@ -433,13 +433,13 @@ class ServerAPI:
 
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
-                    if response_data.get("code") == 'RCI0000':
+                    if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
                         event_ids = [obj['event_id'] for obj in events]
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
                         logger.info(f"Successfully synced {len(events)} events.")
                         return {"status": "success"}
-                    elif response_data.get("code") == 'RCE0219':
+                    elif response_data.get("code") == REJECTED_SYNC_STATUS:
                         event_ids = [obj['event_id'] for obj in events]
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
                         # stop_module('sd-watcher-afk')
@@ -1067,6 +1067,7 @@ class ServerAPI:
         most_used_apps = self.db.get_most_used_apps(starttime=start,endtime=end)
 
         if len(most_used_apps) > 0:
+
             events_json = json.dumps({
                 "most_used_apps" : most_used_apps
             }, default=datetime_serializer)
