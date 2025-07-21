@@ -114,6 +114,10 @@ def get_uuid_address(email=None):
             return encrypt_system_uuid(system_uuid, key)
     return None
 
+def stop_process_by_exe(exe_name):
+    logger.info(f"killing start cmd_name {exe_name}")
+    subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
+               
 if __name__ == '__main__':
     password = "hello@example.com"
     uuid_str = get_system_uuid()

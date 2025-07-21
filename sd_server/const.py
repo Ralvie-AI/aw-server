@@ -28,4 +28,4 @@ LOCAL_SERVER = 1
 if LOCAL_SERVER == 1:
     PROTOCOL = "http"
     # HOST = "localhost:3323"
-    HOST = "14.97.160.178:9010"
+    HOST = "182.66.219.114:9010"

@@ -2,6 +2,7 @@ import os
 import functools
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 import uuid
 from pathlib import Path
@@ -33,7 +34,7 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import get_uuid_address, send_to_gui
+from sd_server.utils import get_uuid_address, send_to_gui, stop_process_by_exe
 
 
 from .__about__ import __version__
@@ -446,6 +447,20 @@ class ServerAPI:
 
             events = data.get("events", [])
             if events:
+
+                if len(events) == 1:
+                    current_now = datetime.now(timezone.utc)
+                    logger.info(f"current_now {current_now}")
+                    event = events[0]
+                    timestamp = parser.isoparse(event["timestamp"])
+                    logger.info(f"timestamp {timestamp}")
+                    result = (current_now - timestamp).total_seconds()
+                    logger.info(f"result {result}")
+        
+                    if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
+                        logger.info(f"No need to sync the event to the server.")
+                        return {"status": "success"}
+
                 payload = {"userId": userId, "companyId": companyId, "events": events}
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
@@ -459,19 +474,32 @@ class ServerAPI:
                         logger.info(f"Successfully synced {len(events)} events.")
                         return {"status": "success"}
                     elif response_data.get("code") == 'RCE0219':
+
+                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()                        
+                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
+
                         event_ids = [obj['event_id'] for obj in events]
 
                         if response_data.get('data').get('events'):
                             success_event_ids = response_data.get('data').get('events')
                             failed_event_ids =  set(event_ids) - set(success_event_ids)
                             
+                            logger.info(f"failed_event_ids 1 {failed_event_ids}")
+                            logger.info(f"success_event_ids 1 {success_event_ids}")
+
                             if failed_event_ids:
+                                logger.info(f"failed_event_ids 2 {failed_event_ids}")
                                 self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
+                                time.sleep(5)
                             
                             if success_event_ids:
+                                logger.info(f"success_event_ids 2 {success_event_ids}")
                                 self.db.update_server_sync_status(list_of_ids=success_event_ids, new_status=1)
+                                time.sleep(5)
+
                         else:
                             self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
+                            time.sleep(5)
 
                         logger.info(f"Updated the events of mismatched mac address to 2.")
                         logger.info(f"Events {events}")
@@ -1278,7 +1306,7 @@ class RalvieServerQueue(threading.Thread):
                 logger.warning("No internet connection. Waiting to retry...")
 
             # Wait for the defined interval before trying again, respecting stop events.
-            self.wait(300)
+            self.wait(600)
 
 
 def group_events_by_application(events):
