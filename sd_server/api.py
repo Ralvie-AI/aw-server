@@ -35,6 +35,7 @@ from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, stop_process_by_exe
+from sd_server.const import SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS
 
 
 from .__about__ import __version__
@@ -467,13 +468,13 @@ class ServerAPI:
 
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
-                    if response_data.get("code") == 'RCI0000':
+                    if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
                         event_ids = [obj['event_id'] for obj in events]
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
                         logger.info(f"Successfully synced {len(events)} events.")
                         return {"status": "success"}
-                    elif response_data.get("code") == 'RCE0219':
+                    elif response_data.get("code") == REJECTED_SYNC_STATUS:
 
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()                        
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
@@ -530,7 +531,7 @@ class ServerAPI:
         endpoint = f"/web/user/{userId}/credentials"
         user_credentials = self._get(endpoint, {"Authorization": token})
 
-        if user_credentials.status_code == 200 and json.loads(user_credentials.text)["code"] == 'RCI0000':
+        if user_credentials.status_code == 200 and json.loads(user_credentials.text)["code"] == SUCCESSFUL_SYNC_STATUS:
             credentials_data = json.loads(user_credentials.text)["data"]["credentials"]
             user_data = json.loads(user_credentials.text)["data"]["user"]
 

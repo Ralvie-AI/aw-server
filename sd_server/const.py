@@ -24,8 +24,12 @@ CACHE_KEY = "Sundial"
 
 
 # local server
-LOCAL_SERVER = 1
-if LOCAL_SERVER == 1:
-    PROTOCOL = "http"
-    # HOST = "localhost:3323"
-    HOST = "182.66.219.114:9010"
+# LOCAL_SERVER = 1
+# if LOCAL_SERVER == 1:
+#     PROTOCOL = "http"
+#     # HOST = "localhost:3323"
+#     HOST = "182.66.219.114:9010"
+
+##### RESPONSE CODE FROM RALVRCI0000IE SERVER #####
+SUCCESSFUL_SYNC_STATUS = "RCI0000" # store the events successful in server side
+REJECTED_SYNC_STATUS = "RCE0219" # server rejected these events
