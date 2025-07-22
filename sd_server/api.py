@@ -465,21 +465,19 @@ class ServerAPI:
                 payload = {"userId": userId, "companyId": companyId, "events": events}
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
-
+                event_ids = [obj['event_id'] for obj in events]
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
-                        event_ids = [obj['event_id'] for obj in events]
+                        
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
                         logger.info(f"Successfully synced {len(events)} events.")
                         return {"status": "success"}
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
 
-                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()                        
+                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
-
-                        event_ids = [obj['event_id'] for obj in events]
 
                         if response_data.get('data').get('events'):
                             success_event_ids = response_data.get('data').get('events')
@@ -503,8 +501,7 @@ class ServerAPI:
                             time.sleep(5)
 
                         logger.info(f"Updated the events of mismatched mac address to 2.")
-                        logger.info(f"Events {events}")
-                        logger.info(f"Events type {type(events)}")
+                        logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
                         send_to_gui("fail")
                         return {"status": "success"}
