@@ -78,13 +78,36 @@ def send_to_gui(msg: str):
         print(f"[ERROR] Could not send: {e}")
         return False
 
+def get_system_uuid_from_shell():
+    try:
+        result = subprocess.run(
+            ['powershell', '-Command', '(Get-CimInstance -Class Win32_ComputerSystemProduct).UUID'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        uuid = result.stdout.strip()
+        return uuid
+    except subprocess.CalledProcessError as e:
+        logger.info(f"Error {e}") 
+        return None
+    
 def get_system_uuid():
     system = platform.system()
 
     if system == "Windows":
-        output = subprocess.check_output(["wmic", "csproduct", "get", "uuid"]).decode()
-        lines = output.strip().split("\n")
-        return lines[1].strip() if len(lines) > 1 else None
+        try:
+            output = subprocess.check_output(["wmic", "csproduct", "get", "uuid"]).decode()
+            lines = output.strip().split("\n")
+            uuid = lines[1].strip() if len(lines) > 1 else None
+            return uuid
+        except FileNotFoundError as e:
+            logger.info(f"FileNotFouldError {e}") 
+            logger.info(f"Getting uuid address from power shell.")
+            return get_system_uuid_from_shell()
+        except Exception as e:
+            logger.info(f"Exception {e}")            
+            return None 
 
     elif system == "Darwin":  # macOS
         output = subprocess.check_output(
