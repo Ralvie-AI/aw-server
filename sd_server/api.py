@@ -3,6 +3,7 @@ import functools
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+import time
 import uuid
 from pathlib import Path
 from socket import gethostname
@@ -33,6 +34,8 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
+from sd_server.utils import get_uuid_address, send_to_gui
+from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -127,6 +130,8 @@ class ServerAPI:
             logger.error(f"Failed to initialize RalvieServerQueue: {e}")
             self.ralvie_server_queue = None
 
+        self.count = 0
+
     def save_settings(self, code, value) -> None:
         """
          Save settings to the database. This is a low - level method for use by plugins that want to save settings to the database as part of their initialization and / or reinitialization.
@@ -206,7 +211,9 @@ class ServerAPI:
          @return A : class : ` Response `
         """
         max_address = hex(uuid.getnode())
-        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address}
+        uuid_address = get_uuid_address()
+        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
+                    "X-SUNDIAL-UUID": uuid_address}
         # Update the headers with the params.
         if params:
             headers.update(params)
@@ -230,7 +237,15 @@ class ServerAPI:
          @return The response from the request as a : class : ` req. Response `
         """
         max_address = hex(uuid.getnode())
-        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address}
+        if data.get('userName'):
+            uuid_address = get_uuid_address(data.get('userName'))
+        else:
+            uuid_address = get_uuid_address()
+
+        if max_address:
+            headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
+                       "X-SUNDIAL-UUID": uuid_address}      
+              
         # Update the headers with the params.
         if params:
             headers.update(params)
@@ -263,7 +278,10 @@ class ServerAPI:
          @return The response from the request as a : class : ` req. Response `
         """
         max_address = hex(uuid.getnode())
-        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address}
+        uuid_address = get_uuid_address()
+        if max_address:
+            headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
+                       "X-SUNDIAL-UUID": uuid_address}
         # Update the headers with the params.
         if params:
             headers.update(params)
@@ -293,7 +311,9 @@ class ServerAPI:
          @return The response from the request as a : class : ` req. Response `
         """
         max_address = hex(uuid.getnode())
-        headers = {"X-SUNDIAL-MAC-ADDRESS": max_address}
+        uuid_address = get_uuid_address()
+        if uuid_address:
+            headers = {"X-SUNDIAL-MAC-ADDRESS": max_address, "X-SUNDIAL-UUID": uuid_address}
         payload = {}
         # Update the headers with the params.
         if params:
@@ -315,8 +335,10 @@ class ServerAPI:
 
          @return A : class : ` req. Response ` object
         """
+        uuid_address = get_uuid_address()
         max_address = hex(uuid.getnode())
-        headers = {"Content-type": "application/json", "X-SUNDIAL-MAC-ADDRESS": max_address}
+        if uuid_address:
+            headers = {"Content-type": "application/json", "X-SUNDIAL-MAC-ADDRESS": max_address, "X-SUNDIAL-UUID": uuid_address}
         if params:
             headers.update(params)
         return req.delete(self._url(endpoint), data=json.dumps(data), headers=headers)
@@ -398,10 +420,19 @@ class ServerAPI:
         # return self._post(endpoint, data,{"Authorization" : token})
 
     def sync_events_to_ralvie(self):
+
+        # self.count += 1
+
+        # if self.count > 2:
+        #     send_to_gui("fail")
+        #     return {"status": "success"}
+
         try:
             userId = load_key("userId")
             logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
+            if cached_credentials is None:
+                logger.info(f"There was no keychain_item_exists.")
             companyId = cached_credentials.get('companyId')
             token = cached_credentials.get('token')
 
@@ -440,10 +471,40 @@ class ServerAPI:
                         logger.info(f"Successfully synced {len(events)} events.")
                         return {"status": "success"}
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
+                        macos_pid = get_running_process_id("sd-watcher-window-macos")
+                        afk_pid = get_running_process_id("sd-watcher-afk")
+                
+                        threading.Thread(target=stop_process, args=(macos_pid,)).start()
+                        threading.Thread(target=stop_process, args=(afk_pid,)).start()
+            
                         event_ids = [obj['event_id'] for obj in events]
-                        self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
-                        # stop_module('sd-watcher-afk')
-                        # stop_module('sd-watcher-window')
+
+                        if response_data.get('data').get('events'):
+                            success_event_ids = response_data.get('data').get('events')
+                            failed_event_ids =  set(event_ids) - set(success_event_ids)
+                            
+                            logger.info(f"failed_event_ids 1 {failed_event_ids}")
+                            logger.info(f"success_event_ids 1 {success_event_ids}")
+
+                            if failed_event_ids:
+                                logger.info(f"failed_event_ids 2 {failed_event_ids}")
+                                self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
+                                time.sleep(5)
+                            
+                            if success_event_ids:
+                                logger.info(f"success_event_ids 2 {success_event_ids}")
+                                self.db.update_server_sync_status(list_of_ids=success_event_ids, new_status=1)
+                                time.sleep(5)
+
+                        else:
+                            self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
+                            time.sleep(5)
+
+                        logger.info(f"Updated the events of mismatched mac address to 2.")
+                        logger.info(f"Events {events}")
+                        logger.info(f"Events type {type(events)}")
+                        logger.info(f"response_data {response_data}")
+                        send_to_gui("fail")
                         return {"status": "success"}
                     else:
                         logger.error(f"Unexpected response code: {response_data.get('code')}")
