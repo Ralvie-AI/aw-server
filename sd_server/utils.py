@@ -56,7 +56,8 @@ def encrypt_system_uuid(uuid_str, password):
     """
     try:
         # Derive 32-byte key from SHA-256 and base64-url encode it
-        hashed = hashlib.sha256(password.encode('utf-8')).digest()
+        lowercase_password = password.lower()
+        hashed = hashlib.sha256(lowercase_password.encode('utf-8')).digest()
         base64_key = base64.urlsafe_b64encode(hashed).decode('utf-8')
         fernet = Fernet(base64_key)
         encrypted_uuid = fernet.encrypt(str(uuid_str).encode('utf-8'))
