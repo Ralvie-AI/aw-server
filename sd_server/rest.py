@@ -5,7 +5,7 @@ import traceback
 from functools import wraps
 from threading import Lock
 from typing import Dict
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta
 
 import iso8601
 import pytz
@@ -20,7 +20,7 @@ from flask import (
     send_from_directory,
 )
 
-from sd_core.launch_start import delete_launch_app, launch_app, check_startup_status, set_autostart_registry
+from sd_core.launch_start import delete_launch_app, launch_app, set_autostart_registry
 from sd_core.util import authenticate, is_internet_connected, reset_user
 from sd_core import schema, db_cache
 from sd_core.models import Event

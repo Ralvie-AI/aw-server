@@ -5,16 +5,16 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 
 import flask.json.provider
-from sd_datastore import Datastore
+from flask_cors import CORS
 from flask import (
     Blueprint,
     Flask,
     current_app,
     send_from_directory,
 )
-from flask_cors import CORS
 
 import sd_datastore
+from sd_datastore import Datastore
 from . import rest
 from .api import ServerAPI
 from .custom_static import get_custom_static_blueprint
