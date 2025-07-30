@@ -497,10 +497,20 @@ class ServerAPI:
                                 time.sleep(5)
 
                         else:
-                            self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
-                            time.sleep(5)
 
-                        logger.info(f"Updated the events of mismatched mac address to 2.")
+                            if not response_data.get("data").get("uuid"):
+
+                                import keyring
+                                file_path = keyring.get_keyring().file_path
+                                if os.path.exists(file_path):
+                                    logger.info(f"Deleted the keyring file.")
+                                    os.remove(file_path)
+
+                            else:
+                                self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
+                                logger.info(f"Updated the events of mismatched mac address to 2.")
+                                time.sleep(5)
+
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
                         send_to_gui("fail")

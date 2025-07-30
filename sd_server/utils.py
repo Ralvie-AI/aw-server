@@ -52,6 +52,7 @@ def encrypt_system_uuid(uuid_str, password):
     try:
         # Derive 32-byte key from SHA-256 and base64-url encode it
         lowercase_password = password.lower()
+        logger.info(f"mail lowercase {lowercase_password}")
         hashed = hashlib.sha256(lowercase_password.encode('utf-8')).digest()
         base64_key = base64.urlsafe_b64encode(hashed).decode('utf-8')
         fernet = Fernet(base64_key)
