@@ -484,17 +484,14 @@ class ServerAPI:
                         if response_data.get('data').get('events'):
                             success_event_ids = response_data.get('data').get('events')
                             failed_event_ids =  set(event_ids) - set(success_event_ids)
-                            
-                            logger.info(f"failed_event_ids 1 {failed_event_ids}")
-                            logger.info(f"success_event_ids 1 {success_event_ids}")
 
                             if failed_event_ids:
-                                logger.info(f"failed_event_ids 2 {failed_event_ids}")
+                                logger.info(f"failed_event_ids {failed_event_ids}")
                                 self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
                                 time.sleep(5)
                             
                             if success_event_ids:
-                                logger.info(f"success_event_ids 2 {success_event_ids}")
+                                logger.info(f"success_event_ids {success_event_ids}")
                                 self.db.update_server_sync_status(list_of_ids=success_event_ids, new_status=1)
                                 time.sleep(5)
 
