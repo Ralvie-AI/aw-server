@@ -146,6 +146,12 @@ def stop_process_by_exe(exe_name):
 if __name__ == '__main__':
     password = "hello@example.com"
     uuid_str = get_system_uuid()
+    uuid_str = "5FB99364-A4CD-EE11-2000-316655F2F09C"
     print("uuid_str", uuid_str)
     print("hello world")
     print(get_uuid_address(password))
+
+    encrypted_token = "gAAAAABojcEIz1PK_e3CCtX2t6aG7tOHOhwMftNfQcuQK5iGaz_pNP35L7nj-sq1tzJJWXnRQufULdTMTGOV5tLBcDtLVQrr0YKBe2k8JOh60KsRaT9qEf2oAz4tBZQjzaAFw3-92Q2i"
+    password = "hello@example.com"
+    print(decrypt_system_uuid(encrypted_token, password))
+    

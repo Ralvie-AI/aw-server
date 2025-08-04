@@ -33,3 +33,4 @@ CACHE_KEY = "Sundial"
 ##### RESPONSE CODE FROM RALVRCI0000IE SERVER #####
 SUCCESSFUL_SYNC_STATUS = "RCI0000" # store the events successful in server side
 REJECTED_SYNC_STATUS = "RCE0219" # server rejected these events
+NO_USER_FOUND = "RCE0039" # User does not exist

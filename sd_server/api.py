@@ -35,7 +35,7 @@ from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, stop_process_by_exe
-from sd_server.const import SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS
+from sd_server.const import SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND
 
 
 from .__about__ import __version__
@@ -466,6 +466,7 @@ class ServerAPI:
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
+                logger.info(f"Sync events ids {event_ids}")
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
@@ -515,6 +516,18 @@ class ServerAPI:
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
                         send_to_gui("fail")
+                        return {"status": "success"}
+                    elif response_data.get("code") == NO_USER_FOUND:
+
+                        import keyring
+                        file_path = keyring.get_keyring().file_path
+                        if os.path.exists(file_path):
+                            logger.info(f"Deleted the keyring file.")
+                            os.remove(file_path)
+                        
+                        logger.info(f"response_data {response_data}")
+                        logger.error(f"No user found.")
+                        send_to_gui("no_user")
                         return {"status": "success"}
                     else:
                         logger.error(f"Unexpected response code: {response_data.get('code')}")
