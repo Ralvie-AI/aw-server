@@ -421,12 +421,6 @@ class ServerAPI:
 
     def sync_events_to_ralvie(self):
 
-        # self.count += 1
-
-        # if self.count > 2:
-        #     send_to_gui("fail")
-        #     return {"status": "success"}
-
         try:
             userId = load_key("userId")
             logger.info(f"User ID from load_key: {userId}")
@@ -458,17 +452,19 @@ class ServerAPI:
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
                         return {"status": "success"}
                     
-                payload = {"userId": userId, "companyId": companyId, "events": events}
+                payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS"}
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
+                event_ids = [obj['event_id'] for obj in events]
 
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
-                        event_ids = [obj['event_id'] for obj in events]
+                        
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
                         logger.info(f"Successfully synced {len(events)} events.")
+                        logger.info(f"Events {event_ids}")
                         return {"status": "success"}
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
                         macos_pid = get_running_process_id("sd-watcher-window-macos")
@@ -476,8 +472,6 @@ class ServerAPI:
                 
                         threading.Thread(target=stop_process, args=(macos_pid,)).start()
                         threading.Thread(target=stop_process, args=(afk_pid,)).start()
-            
-                        event_ids = [obj['event_id'] for obj in events]
 
                         if response_data.get('data').get('events'):
                             success_event_ids = response_data.get('data').get('events')
@@ -498,11 +492,10 @@ class ServerAPI:
 
                         else:
                             self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
+                            logger.info(f"Updated the events of mismatched mac address to 2.")
                             time.sleep(5)
 
-                        logger.info(f"Updated the events of mismatched mac address to 2.")
-                        logger.info(f"Events {events}")
-                        logger.info(f"Events type {type(events)}")
+                        logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
                         send_to_gui("fail")
                         return {"status": "success"}
@@ -1080,6 +1073,7 @@ class ServerAPI:
         end: Optional[datetime] = None,
     ) -> List[Event]:
         events = self.db.get_dashboard_events(starttime=start,endtime=end)
+        # logger.info(f"get_dashboard_events events {events}")
         # print("eventssssss", events)
         # groupedEvents = group_events_by_application(events)   
 
