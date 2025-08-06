@@ -116,6 +116,7 @@ def get_uuid_address(email=None, system_uuid=None):
         if items:
             result = json.loads(items)
             key = result.get('email')
+            logger.info(f"Getting email from cache: {key}")
             return encrypt_system_uuid(system_uuid, key)
     return None
 
