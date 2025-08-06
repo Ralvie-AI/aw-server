@@ -104,10 +104,12 @@ def get_uuid_address(email=None, system_uuid=None):
     if not system_uuid:
         system_uuid = get_system_uuid()
 
-    if email:
-        key = email        
+    if email:                
         logger.info(f"Getting uuid address from email.")
-        return encrypt_system_uuid(system_uuid, key)
+        key = email
+        lowercase_password = key.lower()
+        logger.info(f"mail lowercase {lowercase_password}")
+        return encrypt_system_uuid(system_uuid, lowercase_password)
 
     key_item_exists = keychain_item_exists(CACHE_KEY)
     logger.info(f"Getting max address key_item_exists {key_item_exists}")
@@ -117,7 +119,9 @@ def get_uuid_address(email=None, system_uuid=None):
             result = json.loads(items)
             key = result.get('email')
             logger.info(f"Getting email from cache: {key}")
-            return encrypt_system_uuid(system_uuid, key)
+            lowercase_password = key.lower()
+            logger.info(f"mail lowercase {lowercase_password}")
+            return encrypt_system_uuid(system_uuid, lowercase_password)
     return None
 
 def stop_process_by_exe(exe_name):
