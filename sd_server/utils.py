@@ -1,14 +1,15 @@
+import os
 import subprocess
 import platform
 import re
-import base64
 import hashlib
 import json
 import logging
+import base64
 
 import win32file
 import pywintypes
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from sd_core.cache import keychain_item_exists, get_password
 from sd_server.const import CACHE_KEY
@@ -17,50 +18,27 @@ logger = logging.getLogger(__name__)
 
 PIPE_NAME = r'\\.\pipe\AppSocket'
 
-def decrypt_system_uuid(encrypted_token, password):
-    """
-    Decrypt a Fernet token to retrieve the original UUID.
 
-    @param encrypted_token - Base64-encoded Fernet token (as produced by encrypt_uuid).
-    @param password - Password used to derive the Fernet key for decryption.
-    @return Decrypted UUID as a string, or None if decryption fails.
-    """
-    try:
-        # Derive 32-byte key from SHA-256 and base64-url encode it
-        hashed = hashlib.sha256(password.encode('utf-8')).digest()
-        base64_key = base64.urlsafe_b64encode(hashed).decode('utf-8')
-        fernet = Fernet(base64_key)
-        
-        # Decrypt the Fernet token
-        decrypted_bytes = fernet.decrypt(encrypted_token.encode('utf-8'))
-        return decrypted_bytes.decode('utf-8')  # Return UUID as string
-    except InvalidToken as e:
-        print(f"decrypt_system_uuid error: Invalid token or key: {e}")
-        return None
-    except Exception as e:
-        print(f"decrypt_system_uuid error: {e}")
-        return None
+def derive_key(email: str) -> bytes:
+    # SHA-256 gives 32 bytes suitable for AES-256
+    return hashlib.sha256(email.encode()).digest()
 
-def encrypt_system_uuid(uuid_str, password):
-    """
-    Encrypt UUID and return it as Base64 encoded string. This is useful for storing UUIDs in DB.
+def encrypt_system_uuid(system_uuid: str, email: str) -> str:
+    key = derive_key(email)
+    aesgcm = AESGCM(key)
+    nonce = os.urandom(12)  # 96-bit nonce recommended for AESGCM
+    encrypted = aesgcm.encrypt(nonce, system_uuid.encode(), None)
+    token = nonce + encrypted  # prepend nonce for later use
+    return base64.urlsafe_b64encode(token).decode()
 
-    @param uuid_str - UUID to be encrypted.
-    @param password - Password to derive Fernet key for encryption. Must be able to decrypt UUIDs.
-    @return Base64 encoded UUID or None if encryption failed for any reason.
-    """
-    try:
-        # Derive 32-byte key from SHA-256 and base64-url encode it
-        lowercase_password = password.lower()
-        logger.info(f"mail lowercase {lowercase_password}")
-        hashed = hashlib.sha256(lowercase_password.encode('utf-8')).digest()
-        base64_key = base64.urlsafe_b64encode(hashed).decode('utf-8')
-        fernet = Fernet(base64_key)
-        encrypted_uuid = fernet.encrypt(str(uuid_str).encode('utf-8'))
-        return encrypted_uuid.decode('utf-8')  # Return Fernet token directly
-    except Exception as e:
-        print(f"encrypt_uuid error: {e}")
-        return None
+def decrypt_system_uuid(token: str, email: str) -> str:
+    key = derive_key(email)
+    data = base64.urlsafe_b64decode(token)
+    nonce = data[:12]
+    ciphertext = data[12:]
+    aesgcm = AESGCM(key)
+    decrypted = aesgcm.decrypt(nonce, ciphertext, None)
+    return decrypted.decode()
 
 def send_to_gui(msg: str):
     try:
@@ -121,9 +99,11 @@ def get_system_uuid():
     else:
         raise NotImplementedError("Unsupported OS")
     
-def get_uuid_address(email=None):
+def get_uuid_address(email=None, system_uuid=None):
 
-    system_uuid = get_system_uuid()
+    if not system_uuid:
+        system_uuid = get_system_uuid()
+
     if email:
         key = email        
         logger.info(f"Getting uuid address from email.")
@@ -149,9 +129,9 @@ if __name__ == '__main__':
     uuid_str = "5FB99364-A4CD-EE11-2000-316655F2F09C"
     print("uuid_str", uuid_str)
     print("hello world")
-    print(get_uuid_address(password))
+    print(get_uuid_address(password, uuid_str))
 
-    encrypted_token = "gAAAAABojcEIz1PK_e3CCtX2t6aG7tOHOhwMftNfQcuQK5iGaz_pNP35L7nj-sq1tzJJWXnRQufULdTMTGOV5tLBcDtLVQrr0YKBe2k8JOh60KsRaT9qEf2oAz4tBZQjzaAFw3-92Q2i"
-    password = "hello@example.com"
-    print(decrypt_system_uuid(encrypted_token, password))
+    # encrypted_token = "gAAAAABokI6y6q2TTBSCFynkAXIkpVGM6JhuVT4IICdoiTDtP3ODJ5eo9e4Inluz3EA6azCYcP8L3F-5TrLjc--Tz5c3c14_lNLvUbKG1iK-YHJWvXsHBvoOjIMwOJq_c77o57YIKGpz"
+    # password = "hello@example.com"
+    # print("test", decrypt_system_uuid(encrypted_token, password))
     
