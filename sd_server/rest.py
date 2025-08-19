@@ -752,6 +752,9 @@ class HeartbeatResource(Resource):
 
         if heartbeat_data['data'].get('app') == 'ApplicationFrameHost.exe':
             heartbeat_data['data']['app'] = f"{heartbeat_data['data']['title']}.exe"
+        
+        if heartbeat_data['data'].get('title') == 'New Application Launched':
+            heartbeat_data['data']['title'] = heartbeat_data['data'].get('app')
 
         # Retrieve settings
         settings = db_cache.retrieve("settings_cache")
@@ -1299,6 +1302,7 @@ class DashboardResource(Resource):
         # Assuming this function returns a list of blocked events
         blocked_apps = blocked_list()
         events = current_app.api.get_dashboard_events(start=start, end=end)
+        # logger.info(f"DashboardResource events {events}")
         if events:
             for i in range(len(events['events']) - 1, -1, -1):
                 event = events['events'][i]
@@ -1308,6 +1312,7 @@ class DashboardResource(Resource):
                     del events['events'][i]
                 elif removeprotocals(event['url']) in blocked_apps['url']:
                     del events['events'][i]
+        # logger.info(f"DashboardResource2 events {events}")
         return events, 200
 
 
