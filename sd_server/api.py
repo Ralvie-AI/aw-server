@@ -472,9 +472,10 @@ class ServerAPI:
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
                         
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
-                        self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
+                        self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat()) 
+                        time.sleep(len(events))
                         logger.info(f"Successfully synced {len(events)} events.")
-                        logger.info(f"Events {event_ids}")
+                        logger.info(f"Successfully synced events {event_ids}")
                         return {"status": "success"}
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
 
