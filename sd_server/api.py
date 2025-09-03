@@ -255,13 +255,23 @@ class ServerAPI:
 
         if "accept-language" in data:
             headers.update({"accept-language": data.get('accept-language')})
-            
-        return req.post(
-            self._url(endpoint),
-            data=bytes(json.dumps(data), "utf8"),
-            headers=headers,
-            params=params,
-        )
+        
+        if 'timeout' in data:
+            timeout = data.pop("timeout")
+            return req.post(
+                self._url(endpoint),
+                data=bytes(json.dumps(data), "utf8"),
+                headers=headers,
+                params=params,
+                timeout=timeout,
+            )
+        else:
+            return req.post(
+                self._url(endpoint),
+                data=bytes(json.dumps(data), "utf8"),
+                headers=headers,
+                params=params,
+            )
 
     @always_raise_for_request_errors
     def _put(
