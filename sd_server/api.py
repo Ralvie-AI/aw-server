@@ -47,7 +47,7 @@ if os.environ.get('SSLKEYLOGFILE'):
     os.environ.pop('SSLKEYLOGFILE', None)
 
 
-def get_device_id() -> str:
+def get_device_id() -> str:  
     path = Path(get_data_dir("sd-server")) / "device_id"
     if path.exists():
         with open(path) as f:
@@ -253,12 +253,22 @@ class ServerAPI:
         if "accept-language" in data:
             headers.update({"accept-language": data.get('accept-language')})
             
-        return req.post(
-            self._url(endpoint),
-            data=bytes(json.dumps(data), "utf8"),
-            headers=headers,
-            params=params,
-        )
+        if 'timeout' in data:
+            timeout = data.pop("timeout")
+            return req.post(
+                self._url(endpoint),
+                data=bytes(json.dumps(data), "utf8"),
+                headers=headers,
+                params=params,
+                timeout=timeout,
+            )
+        else:
+            return req.post(
+                self._url(endpoint),
+                data=bytes(json.dumps(data), "utf8"),
+                headers=headers,
+                params=params,
+            )
 
     @always_raise_for_request_errors
     def _put(
@@ -438,7 +448,7 @@ class ServerAPI:
             if data.get("status") == "NoEvents":
                 return {"status": "NoEvents"}
 
-            events = data.get("events", [])
+            events = data.get("events", []) 
             if events:
                 if len(events) == 1:
                     current_now = datetime.now(timezone.utc)
