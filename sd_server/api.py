@@ -1049,34 +1049,25 @@ class ServerAPI:
                             bucket_id, merged["data"]["app"]
                         )
                     )
-                    self.last_event[bucket_id] = merged
-                    self.db[bucket_id].replace_last(merged)
-                    return merged
 
-                    # test status
-                    # result = self.db[bucket_id].replace_last(merged)
-                    # logger.info(f"result type => {result} => {type(result)}")
-                    # if result != 1:
-                    #     logger.info(f"replace_last result = {result}")
-                    #     self.last_event[bucket_id] = merged
-                    #     # self.db[bucket_id].replace_last(merged)
-                    #     return merged
-                    # else:
-                    #     logger.debug("Inserting new heartbeat...")                       
-                    #     logger.info(f"heartbeat data {heartbeat}")
-                    #     logger.info(f"heartbeat data heartbeat type {type(heartbeat)}")
-                    #     heartbeat.id = None
-                    #     heartbeat.duration = 0
-                    #     logger.info(f"after heartbeat data {heartbeat}")
-                    #     # heartbeat = self.db[bucket_id].insert(heartbeat)
-                    #     heartbeat = self.db[bucket_id].insert(heartbeat)
-                    #     if not heartbeat:
-                    #         logger.warning("Failed to insert heartbeat")
-                    #     else:
-                    #         logger.debug(f"Inserted heartbeat with ID {heartbeat.id}")
-                    #     logger.info(f"heartbeat return data {heartbeat}")
-                    #     self.last_event[bucket_id] = heartbeat
-                    #     return heartbeat
+
+                    result = self.db[bucket_id].replace_last(merged)
+                    # logger.info(f"result type => {result}")
+                    if result != 1:
+                        # logger.info(f"replace_last result = {result}")
+                        self.last_event[bucket_id] = merged
+                        return merged
+                    else:
+                        heartbeat.id = None
+                        heartbeat.duration = 0
+                        heartbeat = self.db[bucket_id].insert(heartbeat)
+                        if not heartbeat:
+                            logger.warning("Failed to insert heartbeat")
+                        else:
+                            logger.debug(f"Inserted heartbeat with ID {heartbeat.id}")
+                        logger.info(f"heartbeat return data {heartbeat}")
+                        self.last_event[bucket_id] = heartbeat
+                        return heartbeat
                     
                 else:
                     logger.debug(
