@@ -6,6 +6,8 @@ STAGING = 1
 
 PROTOCOL = "https"
 
+SYNC_TIME = 600 # 10 minutes
+
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
 
