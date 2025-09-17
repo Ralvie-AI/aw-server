@@ -37,6 +37,7 @@ from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui
 from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 
+
 from .__about__ import __version__
 from .exceptions import NotFound
 
@@ -466,6 +467,7 @@ class ServerAPI:
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
+                logger.info(f"events {events}")
 
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
@@ -1021,9 +1023,27 @@ class ServerAPI:
                             bucket_id, merged["data"]["app"]
                         )
                     )
-                    self.last_event[bucket_id] = merged
-                    self.db[bucket_id].replace_last(merged)
-                    return merged
+                    # self.last_event[bucket_id] = merged
+                    # self.db[bucket_id].replace_last(merged)
+                    # return merged
+                    result = self.db[bucket_id].replace_last(merged)
+                    # logger.info(f"result type => {result}")
+                    if result != 1:
+                        # logger.info(f"replace_last result = {result}")
+                        self.last_event[bucket_id] = merged
+                        return merged
+                    else:
+                        heartbeat.id = None
+                        heartbeat.duration = 0
+                        heartbeat = self.db[bucket_id].insert(heartbeat)
+                        if not heartbeat:
+                            logger.warning("Failed to insert heartbeat")
+                        else:
+                            logger.debug(f"Inserted heartbeat with ID {heartbeat.id}")
+                        logger.info(f"heartbeat return data {heartbeat}")
+                        self.last_event[bucket_id] = heartbeat
+                        return heartbeat
+
                 else:
                     logger.debug(
                         "Received heartbeat after pulse window, inserting as new event. (bucket: {}) (app: {})".format(
