@@ -3,7 +3,7 @@
 
 DEVELOPMENT_MODE = 0        # no need to change this
 
-STAGING = 1
+STAGING = 0
 
 PROTOCOL = "https"
 
