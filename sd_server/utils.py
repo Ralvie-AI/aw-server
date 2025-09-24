@@ -58,6 +58,16 @@ def send_to_gui(msg: str):
         print(f"[ERROR] Could not send: {e}")
         return False
 
+def get_system_uuid_from_wmi():
+    import wmi
+    c = wmi.WMI()
+    uuid = ""
+    for p in c.Win32_ComputerSystemProduct():
+        if len(p.UUID) > 0:
+            uuid = p.UUID
+            break
+    return uuid
+
 def get_system_uuid_from_shell():
     try:
         result = subprocess.run(
@@ -71,6 +81,10 @@ def get_system_uuid_from_shell():
     except subprocess.CalledProcessError as e:
         logger.info(f"Error {e}") 
         return None
+    except FileNotFoundError as e:
+        logger.info(f"FileNotFoundError {e}") 
+        logger.info(f"Getting uuid address from wmi.")
+        return get_system_uuid_from_wmi()
     
 def get_system_uuid():
     system = platform.system()
@@ -82,7 +96,7 @@ def get_system_uuid():
             uuid = lines[1].strip() if len(lines) > 1 else None
             return uuid
         except FileNotFoundError as e:
-            logger.info(f"FileNotFouldError {e}") 
+            logger.info(f"FileNotFoundError {e}") 
             logger.info(f"Getting uuid address from power shell.")
             return get_system_uuid_from_shell()
         except Exception as e:
