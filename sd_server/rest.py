@@ -1043,10 +1043,13 @@ class GetAllSettings(Resource):
         """
         settings_dict = db_cache.cache_data("settings_cache")
         if settings_dict is None:
-            db_cache.cache_data(
-                "settings_cache", current_app.api.retrieve_all_settings())
-            settings_dict = db_cache.cache_data("settings_cache")
+            try:
+                settings_dict = current_app.api.retrieve_all_settings()
+            except Exception:
+                logger.info("retrieve_all_settings failed: db not ready or uninitialized Proxy")
+                settings_dict = {}
 
+            db_cache.cache_data("settings_cache", settings_dict)
         return settings_dict
 
 
