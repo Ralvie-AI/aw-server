@@ -61,7 +61,7 @@ def send_to_gui(msg: str):
 def get_system_uuid_from_wmi():
     import wmi
     c = wmi.WMI()
-    uuid = ""
+    uuid = None
     for p in c.Win32_ComputerSystemProduct():
         if len(p.UUID) > 0:
             uuid = p.UUID
