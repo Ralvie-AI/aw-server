@@ -431,11 +431,11 @@ class ServerAPI:
         # return self._post(endpoint, data,{"Authorization" : token})
 
     def sync_events_to_ralvie(self):
-
         try:
             userId = load_key("userId")
             logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
+            logger.info(f"cached_credentials: {cached_credentials}")
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
             companyId = cached_credentials.get('companyId')
@@ -509,8 +509,11 @@ class ServerAPI:
 
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
-                        send_to_gui("fail")
-                        return {"status": "success"}
+                        # send_to_gui only login
+                        if  keychain_item_exists("Sundial"):
+                            send_to_gui("fail")
+                        else:
+                            logger.info("Skipped sending fail because user is signed out")              
                     else:
                         logger.error(f"Unexpected response code: {response_data.get('code')}")
                         return {"status": "unexpected_response_code", "code": response_data.get("code")}
