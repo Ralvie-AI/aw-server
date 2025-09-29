@@ -28,7 +28,7 @@ from requests.packages.urllib3.util.retry import Retry
 from sd_core.cache import cache_user_credentials
 from sd_core.cache import *
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected, stop_module
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS
+from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
 from sd_core.models import Event
@@ -1331,7 +1331,7 @@ class RalvieServerQueue(threading.Thread):
                 logger.warning("No internet connection. Waiting to retry...")
 
             # Wait for the defined interval before trying again, respecting stop events.
-            self.wait(600)
+            self.wait(SYNC_TIME)
 
 
 def group_events_by_application(events):
