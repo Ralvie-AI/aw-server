@@ -9,6 +9,7 @@ import base64
 
 import win32file
 import pywintypes
+import win32com.client
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from sd_core.cache import keychain_item_exists, get_password
@@ -17,6 +18,82 @@ from sd_server.const import CACHE_KEY
 logger = logging.getLogger(__name__)
 
 PIPE_NAME = r'\\.\pipe\AppSocket'
+
+
+# Generate uuid if WMIC and PowerShell are not available
+def generate_uuid():
+    import ctypes
+    import hashlib
+    import uuid
+    import socket
+    import winreg
+
+    def get_machine_guid():
+        """Get Windows MachineGuid from registry"""
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                r"SOFTWARE\Microsoft\Cryptography")
+            value, _ = winreg.QueryValueEx(key, "MachineGuid")
+            return value
+        except Exception:
+            return None
+
+    def get_volume_serial(drive="C:\\"):
+        """Get C: drive volume serial using Windows API"""
+        try:
+            serial_number = ctypes.c_uint(0)
+            max_component_length = ctypes.c_uint(0)
+            file_system_flags = ctypes.c_uint(0)
+            ctypes.windll.kernel32.GetVolumeInformationW(
+                ctypes.c_wchar_p(drive),
+                None,
+                0,
+                ctypes.byref(serial_number),
+                ctypes.byref(max_component_length),
+                ctypes.byref(file_system_flags),
+                None,
+                0
+            )
+            return f"{serial_number.value:08X}"
+        except Exception:
+            return None
+
+    def get_hostname():
+        """Get hostname"""
+        try:
+            return socket.gethostname()
+        except:
+            return None
+
+    def generate_machine_uuid():
+        """Generate a deterministic machine UUID that ignores MAC addresses"""
+        parts = []
+
+        mguid = get_machine_guid()
+        if mguid:
+            parts.append(mguid)
+
+        hostname = get_hostname()
+        if hostname:
+            parts.append(hostname)
+
+        vol = get_volume_serial()
+        if vol:
+            parts.append(vol)
+
+        if not parts:
+            # fallback to random UUID
+            parts.append(str(uuid.uuid4()))
+
+        # Combine parts and hash
+        raw = "|".join(parts).encode("utf-8")
+        hash_bytes = hashlib.sha256(raw).digest()
+
+        # Use first 16 bytes to create UUID
+        machine_uuid = uuid.UUID(bytes=hash_bytes[:16])
+        return str(machine_uuid).upper()
+    
+    return generate_machine_uuid()
 
 
 def derive_key(email: str) -> bytes:
@@ -58,15 +135,22 @@ def send_to_gui(msg: str):
         print(f"[ERROR] Could not send: {e}")
         return False
 
-def get_system_uuid_from_wmi():
-    import wmi
-    c = wmi.WMI()
-    uuid = None
-    for p in c.Win32_ComputerSystemProduct():
-        if len(p.UUID) > 0:
-            uuid = p.UUID
-            break
-    return uuid
+def get_system_uuid_from_win32com_client():
+
+    logger.info("Get UUID from get_system_uuid_from_win32com_client")
+    try:
+        wmi = win32com.client.GetObject("winmgmts:\\\\.\\root\\cimv2")
+        item_uuid = None
+        for item in wmi.ExecQuery("SELECT * FROM Win32_ComputerSystemProduct"):
+            item_uuid = item.UUID
+            logger.info(f"Vendor: {item.Vendor}") 
+            logger.info(f"Name: {item.Name}") 
+            logger.info(f"IdentifyingNumber: {item.IdentifyingNumber}") 
+        return item_uuid
+    except Exception as e:
+        logger.info(f"get_system_uuid_from_win32com_client: {str(e)}")
+        logger.info(f"Get UUID from generate_uuid")
+        return generate_uuid()
 
 def get_system_uuid_from_shell():
     try:
@@ -83,8 +167,9 @@ def get_system_uuid_from_shell():
         return None
     except FileNotFoundError as e:
         logger.info(f"FileNotFoundError {e}") 
-        logger.info(f"Getting uuid address from wmi.")
-        return get_system_uuid_from_wmi()
+        logger.info(f"Getting uuid address from win32com client.")
+        return get_system_uuid_from_win32com_client()
+        
     
 def get_system_uuid():
     system = platform.system()
@@ -141,14 +226,19 @@ def get_uuid_address(email=None, system_uuid=None):
 def stop_process_by_exe(exe_name):
     logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
+
+
                
 if __name__ == '__main__':
     password = "hello@example.com"
     uuid_str = get_system_uuid()
-    uuid_str = "5FB99364-A4CD-EE11-2000-316655F2F09C"
+    uuid_str = generate_uuid()
+    # uuid_str = "5FB99364-A4CD-EE11-2000-316655F2F09C"
     print("uuid_str", uuid_str)
     print("hello world")
-    print(get_uuid_address(password, uuid_str))
+    encrypted_token = get_uuid_address(password, uuid_str)
+    print("encrypted_token ", encrypted_token)
+    print("test", decrypt_system_uuid(encrypted_token, password))
 
     # encrypted_token = "gAAAAABokI6y6q2TTBSCFynkAXIkpVGM6JhuVT4IICdoiTDtP3ODJ5eo9e4Inluz3EA6azCYcP8L3F-5TrLjc--Tz5c3c14_lNLvUbKG1iK-YHJWvXsHBvoOjIMwOJq_c77o57YIKGpz"
     # password = "hello@example.com"
