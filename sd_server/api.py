@@ -28,7 +28,7 @@ from requests.packages.urllib3.util.retry import Retry
 from sd_core.cache import cache_user_credentials
 from sd_core.cache import *
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected, stop_module
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME
+from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
 from sd_core.models import Event
@@ -570,6 +570,7 @@ class ServerAPI:
                 "companyId": companyId,
                 "companyName": companyName,
                 "Authenticated": True,
+                "version": VERSION_DISPLAY
             }
 
             # Update the cache first
