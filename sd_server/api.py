@@ -461,12 +461,12 @@ class ServerAPI:
 
                 if len(events) == 1:
                     current_now = datetime.now(timezone.utc)
-                    logger.info(f"current_now {current_now}")
+                    # logger.info(f"current_now {current_now}")
                     event = events[0]
                     timestamp = parser.isoparse(event["timestamp"])
-                    logger.info(f"timestamp {timestamp}")
+                    # logger.info(f"timestamp {timestamp}")
                     result = (current_now - timestamp).total_seconds()
-                    logger.info(f"result {result}")
+                    # logger.info(f"result {result}")
         
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
                         logger.info(f"No need to sync the event to the server.")
@@ -476,7 +476,7 @@ class ServerAPI:
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
-                logger.info(f"Sync events ids {event_ids}")
+                # logger.info(f"Sync events ids {event_ids}")
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
@@ -484,8 +484,8 @@ class ServerAPI:
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat()) 
                         time.sleep(len(events))
-                        logger.info(f"Successfully synced {len(events)} events.")
-                        logger.info(f"Successfully synced events {event_ids}")
+                        # logger.info(f"Successfully synced {len(events)} events.")
+                        # logger.info(f"Successfully synced events {event_ids}")
                         return {"status": "success"}
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
 
