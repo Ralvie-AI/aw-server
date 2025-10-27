@@ -41,6 +41,9 @@ from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_US
 from .__about__ import __version__
 from .exceptions import NotFound
 
+os.environ.pop('HTTP_PROXY', None)
+os.environ.pop('HTTPS_PROXY', None)
+
 
 logger = logging.getLogger(__name__)
 
