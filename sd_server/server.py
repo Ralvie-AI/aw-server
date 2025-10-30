@@ -82,6 +82,7 @@ class AWFlask(Flask):
         db = Datastore(storage_method, testing=testing)
         self.api = ServerAPI(db=db, testing=testing)
         self.api.ralvie_server_queue.start()
+        self.api.screen_shot_queue.start()
         self.register_blueprint(root)
         self.register_blueprint(rest.blueprint)
         # self.register_blueprint(get_custom_static_blueprint(custom_static))

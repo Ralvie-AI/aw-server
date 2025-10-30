@@ -6,11 +6,13 @@ import hashlib
 import json
 import logging
 import base64
+from datetime import datetime
 
 import win32file
 import pywintypes
 import win32com.client
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from mss import mss
 
 from sd_core.cache import keychain_item_exists, get_password
 from sd_server.const import CACHE_KEY
@@ -228,8 +230,26 @@ def stop_process_by_exe(exe_name):
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
 
 
+def capture_screenshot(screenshot_folder=None):
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    if screenshot_folder is None:
+        screenshot_folder = os.path.join(os.environ['LOCALAPPDATA'], "Sundial", "Sundial", "Screenshots", today)
+
+    if not os.path.isdir(screenshot_folder):
+        os.makedirs(screenshot_folder)
+
+    # Generate a timestamp for the filename
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_file = f"{screenshot_folder}/screenshot_{timestamp}.png"
+
+    with mss() as sct:
+        sct.shot(output=output_file)
+
+    return output_file
                
 if __name__ == '__main__':
+    capture_screenshot()
     password = "hello@example.com"
     uuid_str = get_system_uuid()
     uuid_str = generate_uuid()

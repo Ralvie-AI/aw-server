@@ -33,9 +33,17 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import get_uuid_address, send_to_gui, stop_process_by_exe
+from sd_server.utils import get_uuid_address, send_to_gui, stop_process_by_exe, capture_screenshot
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
-                             PROTOCOL, HOST, CACHE_KEY)
+                             PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_TIME)
+
+
+
+HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=jpg"  
+HOST_TO_UPLOAD_SHOT_POST = f"{PROTOCOL}://{HOST}/web/events/screenshot"
+
+MAX_RETRIES = 3
+DELAY_SECONDS = 3  # wait before retry
 
 
 from .__about__ import __version__
@@ -133,6 +141,13 @@ class ServerAPI:
         except Exception as e:
             logger.error(f"Failed to initialize RalvieServerQueue: {e}")
             self.ralvie_server_queue = None
+
+        try:
+            self.screen_shot_queue = ScreenShotQueue(self)
+            logger.info("ScreenShotQueue initialized successfully.")
+        except Exception as e:
+            logger.error(f"Failed to initialize ScreenShotQueue: {e}")
+            self.screen_shot_queue = None
 
     def save_settings(self, code, value) -> None:
         """
@@ -251,7 +266,8 @@ class ServerAPI:
         if max_address:
             headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
                        "X-SUNDIAL-UUID": uuid_address}        
-
+        print("headers \n")
+        print(headers )
         # Update the headers with the params.
         if params:
             headers.update(params)
@@ -552,6 +568,134 @@ class ServerAPI:
         except Exception as e:
             logger.error(f"Error during sync_events_to_ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}
+        
+    def sync_screenshot_to_ralvie(self, object_key):
+
+        try:
+            print("latest event id ", self.get_lastest_event())
+            userId = load_key("userId")
+            logger.info(f"User ID from load_key: {userId}")
+            cached_credentials = get_credentials(CACHE_KEY)
+
+            if cached_credentials is None:
+                logger.info(f"There was no keychain_item_exists.")
+
+            companyId = cached_credentials.get('companyId')
+            token = cached_credentials.get('token')
+
+            if not userId or not token:
+                logger.warning("User ID or token is missing; unable to sync.")
+                return {"status": "missing_credentials"}
+
+            print("uuid ", uuid.uuid4())
+            event_id = uuid.uuid4()
+            utc_now = datetime.now(timezone.utc)
+            payload = {"userId": userId, 
+                       "companyId": companyId,    
+                        "startTime":  utc_now.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                       "eventId": self.get_lastest_event(),                  
+                       "screenshotObjectkey": object_key,
+                        "screenshotCaptureMethod": "AUTO",
+                        "screenshotCaptureTime": utc_now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+                        }
+            print("object_key ", object_key)
+            print("payload ", payload)
+            print("\n\n")
+            endpoint = "/web/events/screenshot"
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    print("attempt ", attempt)
+                    response = self._post(endpoint, payload, {"Authorization": token})
+                    print("result testing", response)
+                    logging.info(f"result testing => {response.json()}")
+                    logging.info(f"url => {response.json().get('data').get('url')}")
+                    break
+                except Exception as e:
+                    logging.error("[ERROR]: %s", e)
+                    if attempt == MAX_RETRIES:
+                        logging.info("Failed after retries.")
+                    else:
+                        time.sleep(DELAY_SECONDS)
+            return {"status": "hello"}            
+            
+        except Exception as e:            
+            logger.error(f"Error during sync_events_to_ralvie: {e}")
+            return {"status": "error_occurred", "message": str(e)}
+        
+            
+        #         # logger.info(f"Sync events ids {event_ids}")
+        #         if response.status_code == 200:
+        #             response_data = json.loads(response.text)
+        #             if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
+                        
+        #                 self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
+        #                 self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat()) 
+        #                 time.sleep(len(events))
+        #                 # logger.info(f"Successfully synced {len(events)} events.")
+        #                 # logger.info(f"Successfully synced events {event_ids}")
+        #                 return {"status": "success"}
+        #             elif response_data.get("code") == REJECTED_SYNC_STATUS:
+
+        #                 threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
+        #                 threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
+
+        #                 if response_data.get('data').get('events'):
+        #                     success_event_ids = response_data.get('data').get('events')
+        #                     failed_event_ids =  set(event_ids) - set(success_event_ids)
+
+        #                     if failed_event_ids:
+        #                         logger.info(f"failed_event_ids {failed_event_ids}")
+        #                         self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
+        #                         time.sleep(5)
+                            
+        #                     if success_event_ids:
+        #                         logger.info(f"success_event_ids {success_event_ids}")
+        #                         self.db.update_server_sync_status(list_of_ids=success_event_ids, new_status=1)
+        #                         time.sleep(5)
+
+        #                 else:
+
+        #                     if not response_data.get("data").get("uuid"):
+
+        #                         import keyring
+        #                         file_path = keyring.get_keyring().file_path
+        #                         if os.path.exists(file_path):
+        #                             logger.info(f"Deleted the keyring file.")
+        #                             os.remove(file_path)
+
+        #                     else:
+        #                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
+        #                         logger.info(f"Updated the events of mismatched mac address to 2.")
+        #                         time.sleep(5)
+
+        #                 logger.info(f"Events {event_ids}")
+        #                 logger.info(f"response_data {response_data}")
+        #                 send_to_gui("fail")
+        #                 return {"status": "success"}
+        #             elif response_data.get("code") == NO_USER_FOUND:
+
+        #                 import keyring
+        #                 file_path = keyring.get_keyring().file_path
+        #                 if os.path.exists(file_path):
+        #                     logger.info(f"Deleted the keyring file.")
+        #                     os.remove(file_path)
+                        
+        #                 logger.info(f"response_data {response_data}")
+        #                 logger.error(f"No user found.")
+        #                 send_to_gui("no_user")
+        #                 return {"status": "success"}
+        #             else:
+        #                 logger.error(f"Unexpected response code: {response_data.get('code')}")
+        #                 return {"status": "unexpected_response_code", "code": response_data.get("code")}
+        #         else:
+        #             logger.error(f"Sync failed with status code: {response.status_code}")
+        #             return {"status": "sync_failed", "error": response.text}
+        #     else:
+        #         logger.info("No events to sync.")
+        #         return {"status": "no_events"}
+        # except Exception as e:
+        #     logger.error(f"Error during sync_events_to_ralvie: {e}")
+        #     return {"status": "error_occurred", "message": str(e)}
 
     def get_user_credentials(self, userId, token):
         """
@@ -1152,6 +1296,9 @@ class ServerAPI:
             return json.loads(events_json)
         else: return None
 
+    def get_lastest_event(self):
+        return self.db.get_lastest_event()        
+
     def get_non_sync_events(self) -> List[Event]:
         events = self.db.get_non_sync_events()
         if not events:
@@ -1357,6 +1504,139 @@ class RalvieServerQueue(threading.Thread):
 
             # Wait for the defined interval before trying again, respecting stop events.
             self.wait(SYNC_TIME)
+
+
+class ScreenShotQueue(threading.Thread):
+    def __init__(self, server: ServerAPI) -> None:
+        super().__init__(daemon=True)  # Initialize as a daemon thread
+
+        self.server = server
+        self.userId = ""
+        self.connected = False
+        self._stop_event = threading.Event()
+        self._attempt_reconnect_interval = 10  # Interval between reconnection attempts
+
+    def _try_connect(self) -> bool:
+        try:
+            cached_credentials = cache_user_credentials(CACHE_KEY)
+            print("cached_credentials ", cached_credentials)
+            if cached_credentials:
+                db_key = cached_credentials.get("encrypted_db_key")
+                user_key = load_key("user_key")
+                self.userId = load_key("userId")
+
+                if db_key and user_key and self.userId:
+                    self.connected = True
+                    return True
+                else:
+                    logger.warning("Missing necessary keys for connection.")
+            self.connected = False
+        except Exception as e:
+            logger.error(f"Failed to connect: {e}")
+            self.connected = False
+        return self.connected
+
+    def wait(self, seconds: int) -> bool:
+        return self._stop_event.wait(seconds)
+
+    def should_stop(self) -> bool:
+        return self._stop_event.is_set()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    
+    def get_pre_signed_url(self):
+        result = None 
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                res = requests.get(HOST_TO_UPLOAD_SHOT_GET)
+                data = res.json()
+                result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey")
+                break
+            except Exception as e:
+                logging.error("[ERROR]: %s", e)
+                if attempt == MAX_RETRIES:
+                    logging.info("Failed after retries.")
+                else:
+                    time.sleep(DELAY_SECONDS)
+        return result 
+       
+    def update_object_key_file(self, url_path):
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                res = requests.put(url_path)
+                data = res.json()
+                print("data", data)
+                logging.info(f"Upload failed with status code: {data.get('code')}")
+                logging.info(f"Url to download: {data.get('data').get('url')}")
+                break
+            except Exception as e:
+                logging.error("[ERROR]: %s", e)
+                if attempt == MAX_RETRIES:
+                    logging.info("Failed after retries.")
+                else:
+                    time.sleep(DELAY_SECONDS)
+
+    def upload_screenshot(self, file_path, presigned_url):
+
+        try:
+            # Open the file in binary mode
+            with open(file_path, 'rb') as file_obj:
+                # Perform HTTP PUT request to upload file
+                response = requests.put(presigned_url, data=file_obj)    
+            # Check response code (200 or 204 usually means success for S3)
+            if response.status_code in [200, 204]:
+                return {
+                    "status": "SUCCESS",
+                    "message": None
+                }
+            else:
+                logging.info(f"Upload failed with status code: {response.status_code}")
+                return {
+                    "status": "ERROR",
+                    "message": f"Upload failed with status code: {response.status_code}"
+                }    
+        except Exception as e:
+            logging.info(f"Exception during upload: {str(e)}")
+            return {
+                "status": "ERROR",
+                "message": str(e)
+            }
+
+    def run(self) -> None:
+        # Attempt to establish a connection on start
+        if not self._try_connect():
+            logger.info("Initial connection attempt failed. Will retry.")
+
+        while not self.should_stop():
+            # Check internet connection and attempt to sync
+            print("is_internet_connected()", is_internet_connected())
+            if is_internet_connected():
+                if not self.connected:
+                    logger.info("Attempting to reconnect...")
+                    self._try_connect()
+                print("self.connected ", self.connected)
+                if self.connected:
+                    logger.info("Connected to internet. Attempting to sync events.")
+                    try:
+                        capture_screenshot_data = capture_screenshot()
+                        logger.info(f"Screenshot result: {capture_screenshot_data}")
+                        pre_signed_url, object_key = self.get_pre_signed_url()
+                        res = self.upload_screenshot(capture_screenshot_data, pre_signed_url)
+                        if res.get('status') == "SUCCESS":
+                            sync_result = self.server.sync_screenshot_to_ralvie(object_key)
+                            print("result syncresult", sync_result)                          
+   
+                    except Exception as e:
+                        logger.error(f"Error during upload screenshot: {e}")
+                else:
+                    logger.warning("Not connected. Retrying in a few seconds.")
+            else:
+                logger.warning("No internet connection. Waiting to retry...")
+
+            # Wait for the defined interval before trying again, respecting stop events.
+            self.wait(SCREEN_SHOT_TIME)
 
 
 def group_events_by_application(events):
