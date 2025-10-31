@@ -1,7 +1,7 @@
 # DEVELOPMENT_MODE = 0 is for local development.
 # DEVELOPMENT_MODE = 1 is for production.
 
-DEVELOPMENT_MODE = 0
+DEVELOPMENT_MODE = 1
 STAGING = 1
 
 PROTOCOL = "https"
@@ -27,12 +27,12 @@ CACHE_KEY = "Sundial"
 
 
 # local server
-# LOCAL_SERVER = 1
-# if LOCAL_SERVER == 1:
-#     PROTOCOL = "http"
-#     # HOST = "localhost:3323"
-#     # HOST = "182.66.219.114:9010"
-#     HOST = "localhost:3323"
+LOCAL_SERVER = 1
+if LOCAL_SERVER == 1:
+    PROTOCOL = "http"
+    # HOST = "localhost:3323"
+    # HOST = "182.66.219.114:9010"
+    HOST = "localhost:3323"
    
 
 ##### RESPONSE CODE FROM RALVRCI0000IE SERVER #####
