@@ -572,7 +572,11 @@ class ServerAPI:
     def sync_screenshot_to_ralvie(self, object_key):
         try:
             event = self.get_lastest_event()
-            event_data = model_to_dict(event) 
+            event_data = model_to_dict(event)
+            
+            logger.info(f"last event data {len(event_data)}")
+
+            json_datastr = json.loads(event_data.get('datastr'))
             userId = load_key("userId")
             logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
@@ -590,23 +594,29 @@ class ServerAPI:
             utc_now = datetime.now(timezone.utc)
             start_time_tmp = datetime.fromisoformat(event_data.get('timestamp'))
             start_time = start_time_tmp.astimezone().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            afk_dict = {}
+            if 'status' in json_datastr and json_datastr.get('status') == "afk":
+                afk_dict["app"] = event_data.get('app')
+                afk_dict["title"] = event_data.get('title')
+                afk_dict["status"] = "afk"                
+            else:
+                afk_dict["app"] = event_data.get('app')
+                afk_dict["title"] = event_data.get('title')
+
             payload = {"userId": userId, 
                        "companyId": companyId,    
                         "startTime":  start_time,
                        "eventId": str(event_data.get('eventId')),     
                        "duration": float(event_data.get('duration')),
-                        "data": {
-                            "app": event_data.get('app'),
-                            "title": event_data.get('title'),
-                        },    
+                        "data": afk_dict,
                         "applicationName": event_data.get('application_name'),         
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": utc_now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
                         }
             print("object_key ", object_key)
-            print("payload ", payload)
-            print("\n\n")
+            logger.info(f"payload info => {payload}")
             endpoint = "/web/events/screenshot"
             success_url = None
             for attempt in range(1, MAX_RETRIES + 1):
@@ -1557,7 +1567,7 @@ class ScreenShotQueue(threading.Thread):
                         res = self.upload_screenshot(capture_screenshot_data, pre_signed_url)
                         if res.get('status') == "SUCCESS":
                             sync_result = self.server.sync_screenshot_to_ralvie(object_key)
-                            logger.info("result url", sync_result)                                                
+                            logger.info(f"result url => {sync_result}")                                                
    
                     except Exception as e:
                         logger.error(f"Error during upload screenshot: {e}")
