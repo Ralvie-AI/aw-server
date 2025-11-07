@@ -47,22 +47,11 @@ def screenshot():
         latest_screenshot = current_app.api.db.get_latest_screenshot()
     except Exception as e:
         latest_screenshot = None 
+   
+    event_data = model_to_dict(latest_event)    
 
-    print("latest_screenshotlatest_screenshot ", latest_screenshot)
-    
-    event_data = model_to_dict(latest_event)
-
-    
-    print(f"event_data => {event_data}")
-    if latest_screenshot:      
-        print(f"latest_screenshot => {dir(latest_screenshot)}") 
-        print(f"latest_screenshot => {latest_screenshot.event_id}") 
-        print(f"latest_screenshot nnnn => {latest_screenshot.event.eventId}") 
-        print(f"latest_screenshot nnnn => {type(latest_screenshot.event.eventId)}") 
-        screenshot_data = model_to_dict(latest_screenshot)
-        print(f"screenshot_data => {screenshot_data}")
-        print(f"screenshot_data => {dir(screenshot_data)}")
-
+    if latest_screenshot:
+        
         if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
             return jsonify({
             'result': "Conflict",
