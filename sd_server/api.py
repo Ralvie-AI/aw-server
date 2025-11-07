@@ -16,8 +16,7 @@ from typing import (
     Optional,
     Union,
 )
-
-from playhouse.shortcuts import model_to_dict
+from uuid import uuid4
 import iso8601
 import requests as req
 from dateutil import parser
@@ -33,14 +32,14 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import get_uuid_address, send_to_gui, stop_process_by_exe, capture_screenshot
+from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, capture_screenshot, 
+                             convert_datetime_string)
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
                              PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_TIME)
 
 
 
 HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=jpg"  
-HOST_TO_UPLOAD_SHOT_POST = f"{PROTOCOL}://{HOST}/web/events/screenshot"
 
 MAX_RETRIES = 3
 DELAY_SECONDS = 3  # wait before retry
@@ -265,9 +264,9 @@ class ServerAPI:
 
         if max_address:
             headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
-                       "X-SUNDIAL-UUID": uuid_address}        
-        print("headers \n")
-        print(headers )
+                       "X-SUNDIAL-UUID": uuid_address}   
+
+
         # Update the headers with the params.
         if params:
             headers.update(params)
@@ -569,14 +568,10 @@ class ServerAPI:
             logger.error(f"Error during sync_events_to_ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}
         
-    def sync_screenshot_to_ralvie(self, object_key):
+    def sync_screenshot_to_ralvie(self, object_key, record):
         try:
-            event = self.get_lastest_event()
-            event_data = model_to_dict(event)
-            
-            logger.info(f"last event data {len(event_data)}")
 
-            json_datastr = json.loads(event_data.get('datastr'))
+            json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
             logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
@@ -592,30 +587,27 @@ class ServerAPI:
                 return {"status": "missing_credentials"}
            
             utc_now = datetime.now(timezone.utc)
-            start_time_tmp = datetime.fromisoformat(event_data.get('timestamp'))
-            start_time = start_time_tmp.astimezone().strftime("%Y-%m-%dT%H:%M:%SZ")
-
             afk_dict = {}
             if 'status' in json_datastr and json_datastr.get('status') == "afk":
-                afk_dict["app"] = event_data.get('app')
-                afk_dict["title"] = event_data.get('title')
+                afk_dict["app"] = record.event.app
+                afk_dict["title"] = record.event.title
                 afk_dict["status"] = "afk"                
             else:
-                afk_dict["app"] = event_data.get('app')
-                afk_dict["title"] = event_data.get('title')
+                afk_dict["app"] = record.event.app
+                afk_dict["title"] = record.event.title
 
             payload = {"userId": userId, 
                        "companyId": companyId,    
-                        "startTime":  start_time,
-                       "eventId": str(event_data.get('eventId')),     
-                       "duration": float(event_data.get('duration')),
+                        "startTime":  convert_datetime_string(record.event.timestamp),
+                       "eventId": str(record.event.eventId),     
+                       "duration": float(record.event.duration),
                         "data": afk_dict,
-                        "applicationName": event_data.get('application_name'),         
+                        "applicationName": record.event.application_name,         
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
-                        "screenshotCaptureTime": utc_now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+                        "screenshotCaptureTime": convert_datetime_string(record.created_at),
                         }
-            print("object_key ", object_key)
+
             logger.info(f"payload info => {payload}")
             endpoint = "/web/events/screenshot"
             success_url = None
@@ -1486,7 +1478,7 @@ class ScreenShotQueue(threading.Thread):
 
     def stop(self) -> None:
         self._stop_event.set()
-    
+
     def get_pre_signed_url(self):
         result = None 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -1545,6 +1537,7 @@ class ScreenShotQueue(threading.Thread):
                 "message": str(e)
             }
 
+    
     def run(self) -> None:
         # Attempt to establish a connection on start
         if not self._try_connect():
@@ -1561,13 +1554,18 @@ class ScreenShotQueue(threading.Thread):
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync events.")
                     try:
-                        capture_screenshot_data = capture_screenshot()
-                        logger.info(f"Screenshot result: {capture_screenshot_data}")
-                        pre_signed_url, object_key = self.get_pre_signed_url()
-                        res = self.upload_screenshot(capture_screenshot_data, pre_signed_url)
-                        if res.get('status') == "SUCCESS":
-                            sync_result = self.server.sync_screenshot_to_ralvie(object_key)
-                            logger.info(f"result url => {sync_result}")                                                
+
+                        for record in self.server.db.get_screenshot_record():
+                            pre_signed_url, object_key = self.get_pre_signed_url()
+                            res = self.upload_screenshot(record.file_path, pre_signed_url)
+                            if res.get('status') == "SUCCESS":
+                                sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)
+                                logger.info(f"result url => {sync_result}")
+                                if len(sync_result) > 0:
+                                    print("self.server.db.get_screenshot_record_count() ", self.server.db.get_screenshot_record_count())
+                                    if self.server.db.get_screenshot_record_count() > 1:
+                                        print(dir(record))
+                                        record.delete_instance()                               
    
                     except Exception as e:
                         logger.error(f"Error during upload screenshot: {e}")

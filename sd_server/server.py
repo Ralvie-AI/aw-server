@@ -11,14 +11,18 @@ from flask import (
     Flask,
     current_app,
     send_from_directory,
+    jsonify,
+    request
 )
 
 import sd_datastore
 from sd_datastore import Datastore
 from . import rest
-from .api import ServerAPI
+from .api import ServerAPI, ScreenShotQueue
 from .custom_static import get_custom_static_blueprint
 from .log import FlaskLogHandler
+
+from playhouse.shortcuts import model_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +30,57 @@ app_folder = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(app_folder, "static")
 
 root = Blueprint("root", __name__, url_prefix="/")
+
+screen_shot = Blueprint("screenshot", __name__, url_prefix="/screenshot")
+
+@screen_shot.route('/', methods=['POST'])
+def screenshot():
+    print("screen shot testing")
+    json_data = request.get_json()  # Expects Content-Type: application/json
+    if not json_data:
+        return jsonify({'error': 'No JSON payload provided'}), 400
+    
+    current_app.api.db.get_screenshot_record()
+
+    latest_event = current_app.api.db.get_lastest_event()
+    try:
+        latest_screenshot = current_app.api.db.get_latest_screenshot()
+    except Exception as e:
+        latest_screenshot = None 
+
+    print("latest_screenshotlatest_screenshot ", latest_screenshot)
+    
+    event_data = model_to_dict(latest_event)
+
+    
+    print(f"event_data => {event_data}")
+    if latest_screenshot:      
+        print(f"latest_screenshot => {dir(latest_screenshot)}") 
+        print(f"latest_screenshot => {latest_screenshot.event_id}") 
+        print(f"latest_screenshot nnnn => {latest_screenshot.event.eventId}") 
+        print(f"latest_screenshot nnnn => {type(latest_screenshot.event.eventId)}") 
+        screenshot_data = model_to_dict(latest_screenshot)
+        print(f"screenshot_data => {screenshot_data}")
+        print(f"screenshot_data => {dir(screenshot_data)}")
+
+        if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
+            return jsonify({
+            'result': "Conflict",
+            'message': 'Already exists',     
+            }), 409
+
+    data = {
+            "event": str(event_data.get('eventId')),
+            "file_path": json_data.get('file_location')
+            }
+    current_app.api.db.save_screenshot(data)
+    file_location = json_data.get('file_location')   
+
+    return jsonify({
+        'result': file_location,
+        'message': 'JSON processed successfully',
+        'received_data': json_data
+    }), 201
 
 
 def is_valid_keyring_file():
@@ -82,9 +137,11 @@ class AWFlask(Flask):
         db = Datastore(storage_method, testing=testing)
         self.api = ServerAPI(db=db, testing=testing)
         self.api.ralvie_server_queue.start()
+        # self.screen_shot_queue = ScreenShotQueue(self.api)
         self.api.screen_shot_queue.start()
         self.register_blueprint(root)
         self.register_blueprint(rest.blueprint)
+        self.register_blueprint(screen_shot)
         # self.register_blueprint(get_custom_static_blueprint(custom_static))
 
 
