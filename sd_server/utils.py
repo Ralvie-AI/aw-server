@@ -163,10 +163,10 @@ def get_system_uuid_from_shell():
         uuid = result.stdout.strip()
         return uuid
     except subprocess.CalledProcessError as e:
-        logger.info(f"Error {e}") 
-        return None
+        logger.info(f"Error => {e}") 
+        return get_system_uuid_from_win32com_client()        
     except FileNotFoundError as e:
-        logger.info(f"FileNotFoundError {e}") 
+        logger.info(f"FileNotFoundError => {e}") 
         logger.info(f"Getting uuid address from win32com client.")
         return get_system_uuid_from_win32com_client()
         
@@ -181,12 +181,12 @@ def get_system_uuid():
             uuid = lines[1].strip() if len(lines) > 1 else None
             return uuid
         except FileNotFoundError as e:
-            logger.info(f"FileNotFoundError {e}") 
+            logger.info(f"FileNotFoundError => {e}") 
             logger.info(f"Getting uuid address from power shell.")
             return get_system_uuid_from_shell()
         except Exception as e:
-            logger.info(f"Exception {e}")            
-            return None 
+            logger.info(f"Exception error => {e}")
+            return get_system_uuid_from_shell()    
 
     elif system == "Darwin":  # macOS
         output = subprocess.check_output(
