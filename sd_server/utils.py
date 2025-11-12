@@ -34,8 +34,10 @@ def generate_uuid():
             key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
                                 r"SOFTWARE\Microsoft\Cryptography")
             value, _ = winreg.QueryValueEx(key, "MachineGuid")
+            logger.info(f"get_machine_guid => {value}")
             return value
-        except Exception:
+        except Exception as e:
+            logger.info(f"Error get_machine_guid => {e}")
             return None
 
     def get_volume_serial(drive="C:\\"):
@@ -54,8 +56,11 @@ def generate_uuid():
                 None,
                 0
             )
-            return f"{serial_number.value:08X}"
-        except Exception:
+            value = f"{serial_number.value:08X}"
+            logger.info(f"get_volume_serial => {value}")
+            return value
+        except Exception as e:
+            logger.info(f"Error get_volume_serial => {e}")
             return None
 
     def get_hostname():
@@ -63,6 +68,7 @@ def generate_uuid():
         try:
             return socket.gethostname()
         except:
+            logger.info(f"No hostname found.")
             return None
 
     def generate_machine_uuid():
@@ -91,6 +97,7 @@ def generate_uuid():
 
         # Use first 16 bytes to create UUID
         machine_uuid = uuid.UUID(bytes=hash_bytes[:16])
+        logger.info(f"machine_uuid => {machine_uuid}")
         return str(machine_uuid).upper()
     
     return generate_machine_uuid()
@@ -146,6 +153,7 @@ def get_system_uuid_from_win32com_client():
             logger.info(f"Vendor: {item.Vendor}") 
             logger.info(f"Name: {item.Name}") 
             logger.info(f"IdentifyingNumber: {item.IdentifyingNumber}") 
+        logger.info(f"get_system_uuid_from_win32com_client => {item_uuid}")
         return item_uuid
     except Exception as e:
         logger.info(f"get_system_uuid_from_win32com_client: {str(e)}")
@@ -161,14 +169,18 @@ def get_system_uuid_from_shell():
             check=True
         )
         uuid = result.stdout.strip()
+        logger.info(f"get_system_uuid_from_shell => {uuid}")
         return uuid
     except subprocess.CalledProcessError as e:
-        logger.info(f"Error => {e}") 
+        logger.info(f"Error get_system_uuid_from_shell => {e}") 
         return get_system_uuid_from_win32com_client()        
     except FileNotFoundError as e:
         logger.info(f"FileNotFoundError => {e}") 
         logger.info(f"Getting uuid address from win32com client.")
         return get_system_uuid_from_win32com_client()
+    except Exception as e:
+        logger.info(f"Exception get_system_uuid_from_shell => {e}")
+        return get_system_uuid_from_win32com_client()  
         
     
 def get_system_uuid():
@@ -209,6 +221,8 @@ def get_uuid_address(email=None, system_uuid=None):
         lowercase_password = key.lower()
         logger.info(f"mail lowercase {lowercase_password}")
         return encrypt_system_uuid(system_uuid, lowercase_password)
+    
+    logger.info(f"system_uuid => {system_uuid}")
 
     key_item_exists = keychain_item_exists(CACHE_KEY)
     logger.info(f"Getting max address key_item_exists {key_item_exists}")
@@ -240,7 +254,7 @@ if __name__ == '__main__':
     print("encrypted_token ", encrypted_token)
     print("test", decrypt_system_uuid(encrypted_token, password))
 
-    # encrypted_token = "gAAAAABokI6y6q2TTBSCFynkAXIkpVGM6JhuVT4IICdoiTDtP3ODJ5eo9e4Inluz3EA6azCYcP8L3F-5TrLjc--Tz5c3c14_lNLvUbKG1iK-YHJWvXsHBvoOjIMwOJq_c77o57YIKGpz"
-    # password = "hello@example.com"
-    # print("test", decrypt_system_uuid(encrypted_token, password))
+    encrypted_token = "gAAAAABokI6y6q2TTBSCFynkAXIkpVGM6JhuVT4IICdoiTDtP3ODJ5eo9e4Inluz3EA6azCYcP8L3F-5TrLjc--Tz5c3c14_lNLvUbKG1iK-YHJWvXsHBvoOjIMwOJq_c77o57YIKGpz"
+    password = "hello@example.com"
+    print("test", decrypt_system_uuid(encrypted_token, password))
     
