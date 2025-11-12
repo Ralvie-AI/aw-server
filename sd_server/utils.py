@@ -153,6 +153,8 @@ def get_system_uuid_from_win32com_client():
             logger.info(f"Vendor: {item.Vendor}") 
             logger.info(f"Name: {item.Name}") 
             logger.info(f"IdentifyingNumber: {item.IdentifyingNumber}") 
+        logger.info(f"get_system_uuid_from_win32com_client type => {type(item_uuid)}")
+        logger.info(f"get_system_uuid_from_win32com_client len => {len(item_uuid)}")
         logger.info(f"get_system_uuid_from_win32com_client => {item_uuid}")
         return item_uuid
     except Exception as e:
@@ -169,8 +171,13 @@ def get_system_uuid_from_shell():
             check=True
         )
         uuid = result.stdout.strip()
+        logger.info(f"get_system_uuid_from_shell type => {type(uuid)}")
+        logger.info(f"get_system_uuid_from_shell len => {len(uuid)}")
         logger.info(f"get_system_uuid_from_shell => {uuid}")
-        return uuid
+        if uuid:
+            return uuid
+        else:
+            return get_system_uuid_from_win32com_client()
     except subprocess.CalledProcessError as e:
         logger.info(f"Error get_system_uuid_from_shell => {e}") 
         return get_system_uuid_from_win32com_client()        
