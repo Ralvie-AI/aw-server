@@ -2,12 +2,12 @@ import os
 import functools
 import json
 import logging
-from datetime import datetime, timedelta, timezone
 import time
+import threading
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from socket import gethostname
-import threading
 from typing import (
     Any,
     Callable,
@@ -16,12 +16,12 @@ from typing import (
     Optional,
     Union,
 )
-
 from uuid import uuid4
+
 import iso8601
+import requests
 import requests as req
 from dateutil import parser
-import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
@@ -37,10 +37,11 @@ from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui
 from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 
-
 from .__about__ import __version__
 from .exceptions import NotFound
 
+os.environ.pop('HTTP_PROXY', None)
+os.environ.pop('HTTPS_PROXY', None)
 
 logger = logging.getLogger(__name__)
 
