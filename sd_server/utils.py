@@ -23,7 +23,6 @@ PIPE_NAME = r'\\.\pipe\AppSocket'
 # Generate uuid if WMIC and PowerShell are not available
 def generate_uuid():
     import ctypes
-    import hashlib
     import uuid
     import socket
     import winreg
@@ -34,7 +33,6 @@ def generate_uuid():
             key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
                                 r"SOFTWARE\Microsoft\Cryptography")
             value, _ = winreg.QueryValueEx(key, "MachineGuid")
-            logger.info(f"get_machine_guid => {value}")
             return value
         except Exception as e:
             logger.info(f"Error get_machine_guid => {e}")
@@ -57,7 +55,6 @@ def generate_uuid():
                 0
             )
             value = f"{serial_number.value:08X}"
-            logger.info(f"get_volume_serial => {value}")
             return value
         except Exception as e:
             logger.info(f"Error get_volume_serial => {e}")
@@ -97,7 +94,6 @@ def generate_uuid():
 
         # Use first 16 bytes to create UUID
         machine_uuid = uuid.UUID(bytes=hash_bytes[:16])
-        logger.info(f"machine_uuid => {machine_uuid}")
         return str(machine_uuid).upper()
     
     return generate_machine_uuid()
@@ -143,8 +139,6 @@ def send_to_gui(msg: str):
         return False
 
 def get_system_uuid_from_win32com_client():
-
-    logger.info("Get UUID from get_system_uuid_from_win32com_client")
     try:
         wmi = win32com.client.GetObject("winmgmts:\\\\.\\root\\cimv2")
         item_uuid = None
@@ -153,13 +147,9 @@ def get_system_uuid_from_win32com_client():
             logger.info(f"Vendor: {item.Vendor}") 
             logger.info(f"Name: {item.Name}") 
             logger.info(f"IdentifyingNumber: {item.IdentifyingNumber}") 
-        logger.info(f"get_system_uuid_from_win32com_client type => {type(item_uuid)}")
-        logger.info(f"get_system_uuid_from_win32com_client len => {len(item_uuid)}")
-        logger.info(f"get_system_uuid_from_win32com_client => {item_uuid}")
         return item_uuid
     except Exception as e:
         logger.info(f"get_system_uuid_from_win32com_client: {str(e)}")
-        logger.info(f"Get UUID from generate_uuid")
         return generate_uuid()
 
 def get_system_uuid_from_shell():
@@ -171,9 +161,6 @@ def get_system_uuid_from_shell():
             check=True
         )
         uuid = result.stdout.strip()
-        logger.info(f"get_system_uuid_from_shell type => {type(uuid)}")
-        logger.info(f"get_system_uuid_from_shell len => {len(uuid)}")
-        logger.info(f"get_system_uuid_from_shell => {uuid}")
         if uuid:
             return uuid
         else:
@@ -183,7 +170,6 @@ def get_system_uuid_from_shell():
         return get_system_uuid_from_win32com_client()        
     except FileNotFoundError as e:
         logger.info(f"FileNotFoundError => {e}") 
-        logger.info(f"Getting uuid address from win32com client.")
         return get_system_uuid_from_win32com_client()
     except Exception as e:
         logger.info(f"Exception get_system_uuid_from_shell => {e}")
@@ -201,7 +187,6 @@ def get_system_uuid():
             return uuid
         except FileNotFoundError as e:
             logger.info(f"FileNotFoundError => {e}") 
-            logger.info(f"Getting uuid address from power shell.")
             return get_system_uuid_from_shell()
         except Exception as e:
             logger.info(f"Exception error => {e}")
@@ -222,15 +207,12 @@ def get_uuid_address(email=None, system_uuid=None):
     if not system_uuid:
         system_uuid = get_system_uuid()
 
-    if email:                
-        logger.info(f"Getting uuid address from email.")
+    if email: 
         key = email
         lowercase_password = key.lower()
         logger.info(f"mail lowercase {lowercase_password}")
         return encrypt_system_uuid(system_uuid, lowercase_password)
     
-    logger.info(f"system_uuid => {system_uuid}")
-
     key_item_exists = keychain_item_exists(CACHE_KEY)
     logger.info(f"Getting max address key_item_exists {key_item_exists}")
     if key_item_exists:
@@ -238,16 +220,13 @@ def get_uuid_address(email=None, system_uuid=None):
         if items:
             result = json.loads(items)
             key = result.get('email')
-            logger.info(f"Getting email from cache: {key}")
             lowercase_password = key.lower()
-            logger.info(f"mail lowercase {lowercase_password}")
             return encrypt_system_uuid(system_uuid, lowercase_password)
     return None
 
 def stop_process_by_exe(exe_name):
     logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
-
 
                
 if __name__ == '__main__':
