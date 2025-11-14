@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+import json
 from datetime import datetime, timedelta
 from typing import Dict, List
 
@@ -48,22 +49,37 @@ def screenshot():
     except Exception as e:
         latest_screenshot = None 
    
-    event_data = model_to_dict(latest_event)    
+    event_data = model_to_dict(latest_event)
 
-    if latest_screenshot:
-        
+    get_afk_data = json.loads(event_data.get('datastr'))
+    file_location = json_data.get('file_location') 
+
+
+    # if is_idle_screenshot was false, no need to take screen shot for idle time.
+    
+    if get_afk_data.get('status') == 'afk' and not json_data.get('is_idle_screenshot'):
+        os.remove(file_location)
+        return jsonify({
+                        'result': "Success",
+                        'message': 'Screen capture is disabled when the system is idle.',     
+                    }), 200 
+
+    if latest_screenshot:        
+
         if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
+
             return jsonify({
-            'result': "Conflict",
-            'message': 'Already exists',     
-            }), 409
+                        'result': "Conflict",
+                        'message': 'Already exists',     
+                    }), 409
+        
 
     data = {
             "event": str(event_data.get('eventId')),
-            "file_path": json_data.get('file_location')
+            "file_path": file_location
             }
-    current_app.api.db.save_screenshot(data)
-    file_location = json_data.get('file_location')   
+    
+    current_app.api.db.save_screenshot(data)     
 
     return jsonify({
         'result': file_location,
