@@ -586,7 +586,6 @@ class ServerAPI:
                 logger.warning("User ID or token is missing; unable to sync.")
                 return {"status": "missing_credentials"}
            
-            utc_now = datetime.now(timezone.utc)
             afk_dict = {}
             if 'status' in json_datastr and json_datastr.get('status') == "afk":
                 afk_dict["app"] = record.event.app
@@ -618,6 +617,13 @@ class ServerAPI:
                     logging.info(f"result testing => {response.json()}")
                     logging.info(f"url => {response.json().get('data').get('url')}")
                     success_url = response.json().get('data').get('url')
+                    if response.json().get('data').get('code') == "RCI0000":
+                        record.sync_status = 1
+                        record.save()
+                        logging.info(f"save record {record}")
+                    else:
+                        record.object_key = object_key
+                        record.save()
                     break
                 except Exception as e:
                     logging.error("[ERROR]: %s", e)
@@ -1564,8 +1570,12 @@ class ScreenShotQueue(threading.Thread):
                                 if len(sync_result) > 0:
                                     print("self.server.db.get_screenshot_record_count() ", self.server.db.get_screenshot_record_count())
                                     if self.server.db.get_screenshot_record_count() > 1:
-                                        print(dir(record))
-                                        record.delete_instance()                               
+                                        if record.sync_status == 1:
+                                            print(dir(record))
+                                            img_file_path = record.file_path
+                                            logger.info(f"img_file_path => {img_file_path}")
+                                            os.remove(img_file_path)
+                                            record.delete_instance()                               
    
                     except Exception as e:
                         logger.error(f"Error during upload screenshot: {e}")
