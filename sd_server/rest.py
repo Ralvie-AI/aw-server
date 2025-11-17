@@ -30,6 +30,7 @@ from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
 from sd_qt.manager import Manager
+from sd_server.const import DEVELOPMENT_MODE
 
 application_cache_key = "application_cache"
 manager = Manager()
@@ -1501,5 +1502,6 @@ class server_status(Resource):
 class LottieJs(Resource):    
 
     def get(self):
-        logger.info(f"api.blueprint_setup.app.static_folder: {api.blueprint_setup.app.static_folder}")
+        if DEVELOPMENT_MODE == 0:
+            logger.info(f"api.blueprint_setup.app.static_folder: {api.blueprint_setup.app.static_folder}")
         return send_from_directory(api.blueprint_setup.app.static_folder, "js/lottie.min.js")
