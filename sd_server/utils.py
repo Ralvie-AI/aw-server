@@ -210,7 +210,7 @@ def get_uuid_address(email=None, system_uuid=None):
     if email: 
         key = email
         lowercase_password = key.lower()
-        if DEVELOPMENT_MODE == 1:
+        if DEVELOPMENT_MODE == 0:
             logger.info(f"mail lowercase {lowercase_password}")
         return encrypt_system_uuid(system_uuid, lowercase_password)
     
@@ -226,7 +226,7 @@ def get_uuid_address(email=None, system_uuid=None):
     return None
 
 def stop_process_by_exe(exe_name):
-    if DEVELOPMENT_MODE == 1:
+    if DEVELOPMENT_MODE == 0:
         logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
 
