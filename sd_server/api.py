@@ -35,7 +35,7 @@ from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, stop_process_by_exe
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
-                             PROTOCOL, HOST, CACHE_KEY)
+                             PROTOCOL, HOST, CACHE_KEY, DEVELOPMENT_MODE)
 
 
 from .__about__ import __version__
@@ -242,11 +242,13 @@ class ServerAPI:
         max_address = hex(uuid.getnode())
         if data.get('userName'):
             uuid_address = get_uuid_address(data.get('userName'))
-            logger.info(f"uuid_address  {uuid_address}")
-            logger.info(f"uuid_address email   {data.get('userName')}")
+            if DEVELOPMENT_MODE == 0:
+                logger.info(f"uuid_address  {uuid_address}")
+                logger.info(f"uuid_address email   {data.get('userName')}")
         else:
             uuid_address = get_uuid_address()
-            logger.info(f"no email param uuid_address  {uuid_address}")
+            if DEVELOPMENT_MODE == 0:
+                logger.info(f"no email param uuid_address  {uuid_address}")
 
         if max_address:
             headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
