@@ -11,7 +11,7 @@ SYNC_TIME = 600
 
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
-TMP_VERSION = "1.1.8"
+TMP_VERSION = "1.1.9"
 if STAGING == 1:
     HOST = HOST_DEV
     VERSION_DISPLAY = f"{TMP_VERSION}_beta"
