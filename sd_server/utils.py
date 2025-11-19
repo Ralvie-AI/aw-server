@@ -15,7 +15,7 @@ import sys
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from sd_core.cache import keychain_item_exists, get_password
-from sd_server.const import CACHE_KEY
+from sd_server.const import CACHE_KEY, DEVELOPMENT_MODE
 
 logger = logging.getLogger(__name__)
 
@@ -46,24 +46,6 @@ def decrypt_system_uuid(token: str, email: str) -> str:
 def send_to_gui(msg: str):
     system = platform.system()
     logger.info(f"[SEND_GUI] Called with msg: {msg}, system: {system}")
-    
-    # if system == "Windows":
-    #     try:
-    #         handle = win32file.CreateFile(
-    #             PIPE_NAME,
-    #             win32file.GENERIC_WRITE,
-    #             0,  # No sharing
-    #             None,
-    #             win32file.OPEN_EXISTING,
-    #             0,
-    #             None
-    #         )
-    #         win32file.WriteFile(handle, msg.encode())
-    #         win32file.CloseHandle(handle)
-    #         return True
-    #     except pywintypes.error as e:
-    #         print(f"[ERROR] Could not send on Windows: {e}")
-    #         return False
 
     if system == "Darwin":
         try:
@@ -114,17 +96,17 @@ def get_system_uuid():
 
     else:
         raise NotImplementedError("Unsupported OS")
-    
+               
 def get_uuid_address(email=None, system_uuid=None):
 
     if not system_uuid:
         system_uuid = get_system_uuid()
 
     if email:
-        logger.info(f"Getting uuid address from email.")
         key = email
         lowercase_password = key.lower()
-        logger.info(f"mail lowercase {lowercase_password}")
+        if DEVELOPMENT_MODE == 0:
+            logger.info(f"mail lowercase {lowercase_password}")
         return encrypt_system_uuid(system_uuid, lowercase_password)
 
     key_item_exists = keychain_item_exists(CACHE_KEY)
@@ -134,14 +116,13 @@ def get_uuid_address(email=None, system_uuid=None):
         if items:
             result = json.loads(items)
             key = result.get('email')
-            logger.info(f"Getting email from cache: {key}")
             lowercase_password = key.lower()
-            logger.info(f"mail lowercase {lowercase_password}")
             return encrypt_system_uuid(system_uuid, lowercase_password)
     return None
 
 def stop_process_by_exe(exe_name):
-    logger.info(f"killing start cmd_name {exe_name}")
+    if DEVELOPMENT_MODE == 0:
+        logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
                
 if __name__ == '__main__':
