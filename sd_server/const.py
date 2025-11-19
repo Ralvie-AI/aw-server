@@ -3,6 +3,8 @@
 
 DEVELOPMENT_MODE = 0        # no need to change this
 
+DEVELOPMENT_MODE_MACOS = 1
+
 STAGING = 0
 
 PROTOCOL = "https"

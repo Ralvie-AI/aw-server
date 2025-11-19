@@ -28,7 +28,7 @@ from requests.packages.urllib3.util.retry import Retry
 from sd_core.cache import cache_user_credentials
 from sd_core.cache import *
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected, stop_module
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, DEVELOPMENT_MODE
+from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, DEVELOPMENT_MODE_MACOS
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
 from sd_core.models import Event
@@ -240,12 +240,12 @@ class ServerAPI:
         max_address = hex(uuid.getnode())
         if data.get('userName'):
             uuid_address = get_uuid_address(data.get('userName'))
-            if DEVELOPMENT_MODE == 0:
+            if DEVELOPMENT_MODE_MACOS == 0:
                 logger.info(f"uuid_address  {uuid_address}")
                 logger.info(f"uuid_address email   {data.get('userName')}")
         else:
             uuid_address = get_uuid_address()
-            if DEVELOPMENT_MODE == 0:
+            if DEVELOPMENT_MODE_MACOS == 0:
                 logger.info(f"no email param uuid_address  {uuid_address}")
 
 
@@ -1288,7 +1288,7 @@ class RalvieServerQueue(threading.Thread):
     def _try_connect(self) -> bool:
         try:
             cached_credentials = cache_user_credentials(CACHE_KEY)
-            if DEVELOPMENT_MODE == 0:
+            if DEVELOPMENT_MODE_MACOS == 0:
                 logger.info(f"Cached credentials: {cached_credentials}")
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")

@@ -15,7 +15,7 @@ import sys
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from sd_core.cache import keychain_item_exists, get_password
-from sd_server.const import CACHE_KEY, DEVELOPMENT_MODE
+from sd_server.const import CACHE_KEY, DEVELOPMENT_MODE_MACOS
 
 logger = logging.getLogger(__name__)
 
@@ -105,12 +105,13 @@ def get_uuid_address(email=None, system_uuid=None):
     if email:
         key = email
         lowercase_password = key.lower()
-        if DEVELOPMENT_MODE == 0:
+        if DEVELOPMENT_MODE_MACOS == 0:
             logger.info(f"mail lowercase {lowercase_password}")
         return encrypt_system_uuid(system_uuid, lowercase_password)
 
     key_item_exists = keychain_item_exists(CACHE_KEY)
-    logger.info(f"Getting max address key_item_exists {key_item_exists}")
+    if DEVELOPMENT_MODE_MACOS == 0:
+        logger.info(f"Getting max address key_item_exists {key_item_exists}")
     if key_item_exists:
         items = get_password(CACHE_KEY)
         if items:
@@ -121,7 +122,7 @@ def get_uuid_address(email=None, system_uuid=None):
     return None
 
 def stop_process_by_exe(exe_name):
-    if DEVELOPMENT_MODE == 0:
+    if DEVELOPMENT_MODE_MACOS == 0:
         logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
                
