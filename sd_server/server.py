@@ -70,8 +70,11 @@ class AWFlask(Flask):
         if storage_method is None:
             storage_method = sd_datastore.get_storage_methods()["memory"]
         db = Datastore(storage_method, testing=testing)
+        logger.info("AWFlask: Creating ServerAPI...")
         self.api = ServerAPI(db=db, testing=testing)
+        logger.info("AWFlask: ServerAPI created successfully.")
         self.api.ralvie_server_queue.start()
+        logger.info("AWFlask: ralvie_server_queue.start() called.")
         self.register_blueprint(root)
         self.register_blueprint(rest.blueprint)
         # self.register_blueprint(get_custom_static_blueprint(custom_static))
