@@ -13,7 +13,7 @@ import win32com.client
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from sd_core.cache import keychain_item_exists, get_password
-from sd_server.const import CACHE_KEY, DEVELOPMENT_MODE
+from sd_server.const import CACHE_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,10 @@ def generate_uuid():
             key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
                                 r"SOFTWARE\Microsoft\Cryptography")
             value, _ = winreg.QueryValueEx(key, "MachineGuid")
+
+            if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+                logger.info(f"get_machine_guid => {value}")
+
             return value
         except Exception as e:
             logger.info(f"Error get_machine_guid => {e}")
@@ -55,6 +59,10 @@ def generate_uuid():
                 0
             )
             value = f"{serial_number.value:08X}"
+
+            if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+                logger.info(f"get_volume_serial => {value}")
+
             return value
         except Exception as e:
             logger.info(f"Error get_volume_serial => {e}")
@@ -63,7 +71,12 @@ def generate_uuid():
     def get_hostname():
         """Get hostname"""
         try:
-            return socket.gethostname()
+            host_name = socket.gethostname()
+
+            if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+                logger.info(f"get_hostname => {host_name}")
+
+            return host_name
         except:
             logger.info(f"No hostname found.")
             return None
@@ -92,8 +105,15 @@ def generate_uuid():
         raw = "|".join(parts).encode("utf-8")
         hash_bytes = hashlib.sha256(raw).digest()
 
+        if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+            logger.info(f"hash_bytes => {hash_bytes}")
+
         # Use first 16 bytes to create UUID
         machine_uuid = uuid.UUID(bytes=hash_bytes[:16])
+
+        if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+            logger.info(f"machine_uuid => {machine_uuid}")
+
         return str(machine_uuid).upper()
     
     return generate_machine_uuid()
@@ -147,6 +167,10 @@ def get_system_uuid_from_win32com_client():
             logger.info(f"Vendor: {item.Vendor}") 
             logger.info(f"Name: {item.Name}") 
             logger.info(f"IdentifyingNumber: {item.IdentifyingNumber}") 
+        
+        if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+            logger.info(f"get_system_uuid_from_win32com_client item_uuid => {item_uuid}")
+
         return item_uuid
     except Exception as e:
         logger.info(f"get_system_uuid_from_win32com_client: {str(e)}")
@@ -161,6 +185,12 @@ def get_system_uuid_from_shell():
             check=True
         )
         uuid = result.stdout.strip()
+
+        if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+            logger.info(f"get_system_uuid_from_shell type => {type(uuid)}")
+            logger.info(f"get_system_uuid_from_shell uuid => {uuid}")
+            logger.info(f"get_system_uuid_from_shell uuid len => {len(uuid)}")
+
         if uuid:
             return uuid
         else:
@@ -182,9 +212,22 @@ def get_system_uuid():
     if system == "Windows":
         try:
             output = subprocess.check_output(["wmic", "csproduct", "get", "uuid"]).decode()
-            lines = output.strip().split("\n")
-            uuid = lines[1].strip() if len(lines) > 1 else None
-            return uuid
+            lines = output.strip().split("\n")      
+
+            if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+                logger.info(f"get_system_uuid => {lines}")
+                logger.info(f"get_system_uuid type => {type(lines)}")
+                logger.info(f"get_system_uuid len => {len(lines)}")
+
+            if len(lines) > 1:
+                uuid = lines[1].strip()
+
+                if DEVELOPMENT_MODE == LOGGING_VERBOSE:
+                    logger.info(f"get_system_uuid uuid => {uuid}")
+
+                return uuid 
+            else:
+                return get_system_uuid_from_shell()
         except FileNotFoundError as e:
             logger.info(f"FileNotFoundError => {e}") 
             return get_system_uuid_from_shell()
@@ -210,8 +253,10 @@ def get_uuid_address(email=None, system_uuid=None):
     if email: 
         key = email
         lowercase_password = key.lower()
-        if DEVELOPMENT_MODE == 0:
+
+        if DEVELOPMENT_MODE == LOGGING_VERBOSE:
             logger.info(f"mail lowercase {lowercase_password}")
+
         return encrypt_system_uuid(system_uuid, lowercase_password)
     
     key_item_exists = keychain_item_exists(CACHE_KEY)
@@ -226,11 +271,30 @@ def get_uuid_address(email=None, system_uuid=None):
     return None
 
 def stop_process_by_exe(exe_name):
-    if DEVELOPMENT_MODE == 0:
+    if DEVELOPMENT_MODE == LOGGING_VERBOSE:
         logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
 
-               
+def add_end_time(start_time, seconds_to_add):
+    from datetime import datetime, timedelta
+
+    # Parse the ISO string
+    dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%SZ")
+
+    # Add seconds
+    new_dt = dt + timedelta(seconds=seconds_to_add)
+
+    # Convert back to ISO8601 with 'Z'
+    # end_time = new_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    # Round to nearest second
+    rounded_dt = new_dt.replace(microsecond=0)
+    if new_dt.microsecond >= 500_000:
+        rounded_dt += timedelta(seconds=1)
+
+    # Format as ISO8601 without fractional seconds
+    end_time = rounded_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return end_time
+
 if __name__ == '__main__':
     password = "hello@example.com"
     uuid_str = get_system_uuid()
