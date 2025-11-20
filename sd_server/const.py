@@ -7,7 +7,8 @@ STAGING = 1
 
 PROTOCOL = "https"
 
-SYNC_TIME = 600
+SYNC_TIME = 600 # 10  minutes
+SCREEN_SHOT_TIME = 300 # 5  minutes
 
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
@@ -25,5 +26,9 @@ CACHE_KEY = "Sundial"
 SUCCESSFUL_SYNC_STATUS = "RCI0000" # store the events successful in server side
 REJECTED_SYNC_STATUS = "RCE0219" # server rejected these events
 
-
-
+LOCAL_SERVER = 1
+if LOCAL_SERVER == 1:
+    PROTOCOL = "http"
+    # HOST = "localhost:3323"
+    # HOST = "182.66.219.114:9010"
+    HOST = "localhost:3323"
