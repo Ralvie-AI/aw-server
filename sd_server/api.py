@@ -488,7 +488,7 @@ class ServerAPI:
                         
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat()) 
-                        time.sleep(len(events))
+                        # time.sleep(len(events))
                         # logger.info(f"Successfully synced {len(events)} events.")
                         # logger.info(f"Successfully synced events {event_ids}")
                         return {"status": "success"}
@@ -504,12 +504,12 @@ class ServerAPI:
                             if failed_event_ids:
                                 logger.info(f"failed_event_ids {failed_event_ids}")
                                 self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
-                                time.sleep(5)
+                                # time.sleep(5)
                             
                             if success_event_ids:
                                 logger.info(f"success_event_ids {success_event_ids}")
                                 self.db.update_server_sync_status(list_of_ids=success_event_ids, new_status=1)
-                                time.sleep(5)
+                                # time.sleep(5)
 
                         else:
 
@@ -524,7 +524,7 @@ class ServerAPI:
                             else:
                                 self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
                                 logger.info(f"Updated the events of mismatched mac address to 2.")
-                                time.sleep(5)
+                                # time.sleep(5)
 
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
@@ -1055,6 +1055,15 @@ class ServerAPI:
                         )
                     )
 
+                    def get_minutes(duration):    
+                        total_seconds = duration.total_seconds()
+                        # Convert seconds to minutes
+                        minutes = total_seconds / 60
+                        return round(minutes)
+                    
+                   
+                    if merged.get('data').get('status') == 'afk' and get_minutes(merged.get('duration')) >= 30:        
+                        merged['duration'] = timedelta(minutes=30)
 
                     result = self.db[bucket_id].replace_last(merged)
                     # logger.info(f"result type => {result}")
