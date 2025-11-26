@@ -17,7 +17,6 @@ from typing import (
     Union,
 )
 from uuid import uuid4
-from playhouse.shortcuts import model_to_dict
 
 import iso8601
 import requests
@@ -35,7 +34,7 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import get_uuid_address, send_to_gui, capture_screenshot
+from sd_server.utils import get_uuid_address, send_to_gui, capture_screenshot, convert_datetime_string
 from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 
 from .__about__ import __version__
@@ -146,7 +145,6 @@ class ServerAPI:
             logger.error(f"Failed to initialize ScreenShotQueue: {e}")
             self.screen_shot_queue = None
 
-        self.count = 0
 
     def save_settings(self, code, value) -> None:
         """
@@ -542,14 +540,11 @@ class ServerAPI:
             logger.error(f"Error during sync_events_to_ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}
         
-    def sync_screenshot_to_ralvie(self, object_key):
+    def sync_screenshot_to_ralvie(self, object_key, record):
 
         try:
-            event = self.get_lastest_event()
-            event_data = model_to_dict(event)
-            logger.info(f"last event data {len(event_data)}")
 
-            json_datastr = json.loads(event_data.get('datastr'))
+            json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
             logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
@@ -564,42 +559,49 @@ class ServerAPI:
                 logger.warning("User ID or token is missing; unable to sync.")
                 return {"status": "missing_credentials"}
 
-        
-            utc_now = datetime.now(timezone.utc)
-            start_time_tmp = datetime.fromisoformat(event_data.get('timestamp'))
-            start_time = start_time_tmp.astimezone().strftime("%Y-%m-%dT%H:%M:%SZ")
-
             afk_dict = {}
             if 'status' in json_datastr and json_datastr.get('status') == "afk":
-                afk_dict["app"] = event_data.get('app')
-                afk_dict["title"] = event_data.get('title')
+                afk_dict["app"] = record.event.app
+                afk_dict["title"] = record.event.title
                 afk_dict["status"] = "afk"                
             else:
-                afk_dict["app"] = event_data.get('app')
-                afk_dict["title"] = event_data.get('title')
+                afk_dict["app"] = record.event.app
+                afk_dict["title"] = record.event.title
 
             payload = {"userId": userId, 
                        "companyId": companyId,    
-                        "startTime":  start_time,
-                       "eventId": str(event_data.get('eventId')),     
-                       "duration": float(event_data.get('duration')),
+                        "startTime":  convert_datetime_string(record.event.timestamp),
+                       "eventId": str(record.event.eventId),     
+                       "duration": float(record.event.duration),
                         "data": afk_dict,    
-                        "applicationName": event_data.get('application_name'),         
+                        "applicationName": record.event.application_name,         
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
-                        "screenshotCaptureTime": utc_now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+                        "screenshotCaptureTime": convert_datetime_string(record.created_at),
                         }
-            print("object_key ", object_key)
+        
             logger.info(f"payload info => {payload}")
             endpoint = "/web/events/screenshot"
-            success_url = None
+            uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
                     logging.info(f"result testing => {response.json()}")
-                    logging.info(f"url => {response.json().get('data').get('url')}")
-                    success_url = response.json().get('data').get('url')
+                    json_data = response.json()
+                    logger.info(f"json_data => {json_data}")
+                    logger.info(f"json_data code => {json_data.get('code')}")
+                    logging.info(f"url => {json_data.get('data').get('url')}")                         
+
+                    if json_data.get('code') == "RCI0000":
+                        record.sync_status = 1
+                        record.save()
+                        logging.info(f"save record {record}")
+                        uploaded_success = json_data.get('code')
+                    else:
+                        uploaded_success = json_data.get('code')
+                        record.object_key = object_key
+                        record.save()
                     break
                 except Exception as e:
                     logging.error("[ERROR]: %s", e)
@@ -607,7 +609,77 @@ class ServerAPI:
                         logging.info("Failed after retries.")
                     else:
                         time.sleep(DELAY_SECONDS)
-            return success_url            
+            return uploaded_success           
+
+        except Exception as e:            
+            logger.error(f"Error during sync_events_to_ralvie: {e}")
+            return {"status": "error_occurred", "message": str(e)}
+    
+    def retry_sync_screenshot_to_ralvie(self, object_key, record):
+        try:
+
+            json_datastr = json.loads(record.event.datastr)
+            userId = load_key("userId")
+            logger.info(f"User ID from load_key: {userId}")
+            cached_credentials = get_credentials(CACHE_KEY)
+
+            if cached_credentials is None:
+                logger.info(f"There was no keychain_item_exists.")
+
+            companyId = cached_credentials.get('companyId')
+            token = cached_credentials.get('token')
+
+            if not userId or not token:
+                logger.warning("User ID or token is missing; unable to sync.")
+                return {"status": "missing_credentials"}
+
+            afk_dict = {}
+            if 'status' in json_datastr and json_datastr.get('status') == "afk":
+                afk_dict["app"] = record.event.app
+                afk_dict["title"] = record.event.title
+                afk_dict["status"] = "afk"                
+            else:
+                afk_dict["app"] = record.event.app
+                afk_dict["title"] = record.event.title
+
+            payload = {"userId": userId, 
+                       "companyId": companyId,    
+                        "startTime":  convert_datetime_string(record.event.timestamp),
+                       "eventId": str(record.event.eventId),     
+                       "duration": float(record.event.duration),
+                        "data": afk_dict,
+                        "applicationName": record.event.application_name,         
+                        "screenshotObjectkey": object_key,
+                        "screenshotCaptureMethod": "AUTO",
+                        "screenshotCaptureTime": convert_datetime_string(record.created_at),
+                        }
+
+            logger.info(f"payload info => {payload}")
+            endpoint = "/web/events/screenshot"
+            uploaded_success = None
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    logging.info(f"attempt => {attempt}")
+                    response = self._post(endpoint, payload, {"Authorization": token})
+                    logging.info(f"result testing => {response.json()}")
+                    json_data = response.json()
+                    logger.info(f"json_data => {json_data}")
+                    logger.info(f"json_data code => {json_data.get('code')}")
+                    logging.info(f"url => {json_data.get('data').get('url')}")                         
+
+                    if json_data.get('code') == "RCI0000":
+                        record.sync_status = 1
+                        record.save()
+                        logging.info(f"save record {record}")
+                        uploaded_success = json_data.get('code')                    
+                    break
+                except Exception as e:
+                    logging.error("[ERROR]: %s", e)
+                    if attempt == MAX_RETRIES:
+                        logging.info("Failed after retries.")
+                    else:
+                        time.sleep(DELAY_SECONDS)
+            return uploaded_success          
 
         except Exception as e:            
             logger.error(f"Error during sync_events_to_ralvie: {e}")
@@ -623,7 +695,7 @@ class ServerAPI:
         endpoint = f"/web/user/{userId}/credentials"
         user_credentials = self._get(endpoint, {"Authorization": token})
 
-        if user_credentials.status_code == 200 and json.loads(user_credentials.text)["code"] == 'RCI0000':
+        if user_credentials.status_code == 200 and json.loads(user_credentials.text)["code"] == SUCCESSFUL_SYNC_STATUS:
             credentials_data = json.loads(user_credentials.text)["data"]["credentials"]
             user_data = json.loads(user_credentials.text)["data"]["user"]
 
@@ -1430,7 +1502,6 @@ class ScreenShotQueue(threading.Thread):
         self.userId = ""
         self.connected = False
         self._stop_event = threading.Event()
-        self._attempt_reconnect_interval = 10  # Interval between reconnection attempts
 
     def _try_connect(self) -> bool:
         try:
@@ -1536,13 +1607,33 @@ class ScreenShotQueue(threading.Thread):
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync events.")
                     try:
-                        capture_screenshot_data = capture_screenshot()
-                        logger.info(f"Screenshot result: {capture_screenshot_data}")
-                        pre_signed_url, object_key = self.get_pre_signed_url()
-                        res = self.upload_screenshot(capture_screenshot_data, pre_signed_url)
-                        if res.get('status') == "SUCCESS":
-                            sync_result = self.server.sync_screenshot_to_ralvie(object_key)
-                            logger.info(f"result url => {sync_result}")                           
+                       for record in self.server.db.get_screenshot_record():
+                            pre_signed_url, object_key = self.get_pre_signed_url()
+                            res = self.upload_screenshot(record.file_path, pre_signed_url)
+                            if res.get('status') == "SUCCESS":
+                                sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)
+                                logger.info(f"result url => {sync_result}")
+                                if sync_result == "RCI0000":
+                                    logger.info(f"record.sync_status after => {record.sync_status}")
+                                    if record.sync_status == 1:
+                                        logger.info(f"dir => {dir(record)}")
+                                        img_file_path = record.file_path
+                                        logger.info(f"img_file_path => {img_file_path}")
+                                        os.remove(img_file_path)
+                                        record.delete_instance()
+                            else:
+                                if record.object_key:
+                                    sync_result = self.server.retry_sync_screenshot_to_ralvie(record.object_key, record)
+                                    logger.info(f"result url => {sync_result}")
+                                    if sync_result == "RCI0000":
+                                        logger.info(f"record.sync_status after => {record.sync_status}")
+                                        logger.info(f"record.object_key after => {record.object_key}")
+                                        if record.sync_status == 1:
+                                            logger.info(f"dir => {dir(record)}")
+                                            img_file_path = record.file_path
+                                            logger.info(f"img_file_path => {img_file_path}")
+                                            os.remove(img_file_path)
+                                            record.delete_instance()                                                      
 
                     except Exception as e:
                         logger.error(f"Error during upload screenshot: {e}")

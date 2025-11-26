@@ -147,15 +147,25 @@ def stop_process_by_exe(exe_name):
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
 
 def capture_screenshot(screenshot_folder=None):
-
+    logger.info(f"capture_screenshot")
+    system = platform.system()
     today = datetime.now().strftime("%Y-%m-%d")
+
     if screenshot_folder is None:
-        screenshot_folder = os.path.join(os.environ['LOCALAPPDATA'], "Sundial", "Sundial", "Screenshots", today)
+        if system == "Windows":
+            screenshot_folder = os.path.join(os.environ['LOCALAPPDATA'], "Sundial", "Sundial", "Screenshots", today)
+        elif system == "Darwin":  # macOS
+            screenshot_folder = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Sundial", "Screenshots", today)
+    
+    print("DEBUG system =", system)
+    print("DEBUG user home =", os.path.expanduser("~"))
+    print("DEBUG screenshot_folder =", screenshot_folder)
+    print("DEBUG exists? =", os.path.isdir(screenshot_folder))
 
     if not os.path.isdir(screenshot_folder):
         os.makedirs(screenshot_folder)
 
-    # Generate a timestamp for the filename
+    # Generate timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_file = f"{screenshot_folder}/screenshot_{timestamp}.png"
 
@@ -163,7 +173,40 @@ def capture_screenshot(screenshot_folder=None):
         sct.shot(output=output_file)
 
     return output_file
-               
+
+
+def convert_datetime_string(dt_string: str) -> str:
+    """
+    Converts a datetime string from the format 'YYYY-MM-DD HH:MM:SS.ffffff+00:00' 
+    to the format 'YYYY-MM-DDT HH:MM:SSZ' (ISO 8601 without fractional seconds, 
+    using 'T' separator and 'Z' suffix for UTC).
+
+    Args:
+        dt_string: The input datetime string (e.g., '2025-11-03 05:47:23.663000+00:00').
+
+    Returns:
+        The converted datetime string (e.g., '2025-11-03T05:47:23Z').
+    """
+    
+    # Define the format of the input string
+    INPUT_FORMAT = '%Y-%m-%d %H:%M:%S.%f%z'
+    
+    # Define the desired output format (T separator, no fractional seconds, Z suffix for UTC)
+    OUTPUT_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+
+    try:
+        # Step 1: Parse the input string into a datetime object
+        dt_object = datetime.strptime(dt_string, INPUT_FORMAT)
+        
+        # Step 2: Format the datetime object to the target string format
+        formatted_string = dt_object.strftime(OUTPUT_FORMAT)
+        
+        return formatted_string
+    
+    except ValueError as e:
+        # Handle cases where the input string doesn't match the expected format
+        return f"Error: Failed to parse datetime string. Details: {e}"
+      
 if __name__ == '__main__':
     capture_screenshot()
     password = "hello@example.com"
