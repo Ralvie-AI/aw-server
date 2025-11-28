@@ -229,25 +229,6 @@ def stop_process_by_exe(exe_name):
     logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
 
-
-def capture_screenshot(screenshot_folder=None):
-
-    today = datetime.now().strftime("%Y-%m-%d")
-    if screenshot_folder is None:
-        screenshot_folder = os.path.join(os.environ['LOCALAPPDATA'], "Sundial", "Sundial", "Screenshots", today)
-
-    if not os.path.isdir(screenshot_folder):
-        os.makedirs(screenshot_folder)
-
-    # Generate a timestamp for the filename
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    output_file = f"{screenshot_folder}/screenshot_{timestamp}.png"
-
-    with mss() as sct:
-        sct.shot(output=output_file)
-
-    return output_file
-
 def convert_datetime_string(dt_string: str) -> str:
     """
     Converts a datetime string from the format 'YYYY-MM-DD HH:MM:SS.ffffff+00:00' 
@@ -281,7 +262,7 @@ def convert_datetime_string(dt_string: str) -> str:
         return f"Error: Failed to parse datetime string. Details: {e}"
                
 if __name__ == '__main__':
-    capture_screenshot()
+
     password = "hello@example.com"
     uuid_str = get_system_uuid()
     uuid_str = generate_uuid()
