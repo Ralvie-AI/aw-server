@@ -32,14 +32,12 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, capture_screenshot, 
-                             convert_datetime_string)
+from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, convert_datetime_string)
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
                              PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_TIME)
 
 
-
-HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=jpg"  
+HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=json"  
 
 MAX_RETRIES = 3
 DELAY_SECONDS = 3  # wait before retry
