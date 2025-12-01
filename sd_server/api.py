@@ -34,7 +34,7 @@ from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, convert_datetime_string)
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
-                             PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_TIME)
+                             PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_SYNC_TIME)
 
 
 HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=json"  
@@ -138,6 +138,9 @@ class ServerAPI:
         except Exception as e:
             logger.error(f"Failed to initialize RalvieServerQueue: {e}")
             self.ralvie_server_queue = None
+
+        logger.info(f"HOST => {HOST}")
+        logger.info(f"PROTOCOL => {PROTOCOL}")
 
         try:
             self.screen_shot_queue = ScreenShotQueue(self)
@@ -1671,7 +1674,7 @@ class ScreenShotQueue(threading.Thread):
                 logger.warning("No internet connection. Waiting to retry...")
 
             # Wait for the defined interval before trying again, respecting stop events.
-            self.wait(SCREEN_SHOT_TIME)
+            self.wait(SCREEN_SHOT_SYNC_TIME)
 
 
 def group_events_by_application(events):
