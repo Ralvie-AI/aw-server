@@ -34,14 +34,13 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import get_uuid_address, send_to_gui, capture_screenshot, convert_datetime_string
+from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string
 from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 
 from .__about__ import __version__
 from .exceptions import NotFound
 
 HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=jpg"  
-HOST_TO_UPLOAD_SHOT_POST = f"{PROTOCOL}://{HOST}/web/events/screenshot"
 
 MAX_RETRIES = 3
 DELAY_SECONDS = 3  # wait before retry
