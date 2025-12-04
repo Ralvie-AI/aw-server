@@ -45,9 +45,7 @@ SUCCESSFUL_SYNC_STATUS = "RCI0000" # store the events successful in server side
 REJECTED_SYNC_STATUS = "RCE0219" # server rejected these events
 NO_USER_FOUND = "RCE0039" # User does not exist
 
-
-
-CONFIG_SERVER = 1
+CONFIG_SERVER = 0
 
 if CONFIG_SERVER == 1:
     import os
@@ -90,4 +88,4 @@ if CONFIG_SERVER == 1:
     elif not os.path.exists(config_file_path):
         PROTOCOL = "http"
         HOST = "localhost:3323"
-        write_config("settings", PROTOCOL, HOST)     
+        write_config("settings", PROTOCOL, HOST)
