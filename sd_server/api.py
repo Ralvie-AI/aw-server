@@ -1635,11 +1635,11 @@ class ScreenShotQueue(threading.Thread):
                     self._try_connect()
                 print("self.connected ", self.connected)
                 if self.connected:
-                    logger.info("Connected to internet. Attempting to sync events.")
+                    logger.info("Connected to internet. Attempting to sync screenshot.")
                     try:
 
                         for record in self.server.db.get_screenshot_record():
-                            pre_signed_url, object_key = self.get_pre_signed_url()
+                            pre_signed_url, object_key = self.get_pre_signed_url()                            
                             res = self.upload_screenshot(record.file_path, pre_signed_url)
                             if res.get('status') == "SUCCESS":
                                 sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)

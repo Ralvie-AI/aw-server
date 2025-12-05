@@ -160,7 +160,8 @@ def get_system_uuid_from_shell():
             ['powershell', '-Command', '(Get-CimInstance -Class Win32_ComputerSystemProduct).UUID'],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
         uuid = result.stdout.strip()
         return uuid
@@ -178,7 +179,9 @@ def get_system_uuid():
 
     if system == "Windows":
         try:
-            output = subprocess.check_output(["wmic", "csproduct", "get", "uuid"]).decode()
+            output = subprocess.check_output(["wmic", "csproduct", "get", "uuid"],
+                                             creationflags=subprocess.CREATE_NO_WINDOW,
+                                             ).decode()
             lines = output.strip().split("\n")
             uuid = lines[1].strip() if len(lines) > 1 else None
             return uuid
@@ -263,15 +266,19 @@ def convert_datetime_string(dt_string: str) -> str:
                
 if __name__ == '__main__':
 
-    password = "hello@example.com"
+    # password = "hello@example.com"
+    password = None
     uuid_str = get_system_uuid()
+    # print(uuid_str)
     uuid_str = generate_uuid()
     # uuid_str = "5FB99364-A4CD-EE11-2000-316655F2F09C"
     print("uuid_str", uuid_str)
-    print("hello world")
-    encrypted_token = get_uuid_address(password, uuid_str)
+    # print("hello world")
+    encrypted_token = get_uuid_address()
     print("encrypted_token ", encrypted_token)
-    print("test", decrypt_system_uuid(encrypted_token, password))
+    # print("test", decrypt_system_uuid(encrypted_token, password))
+
+
 
     # encrypted_token = "gAAAAABokI6y6q2TTBSCFynkAXIkpVGM6JhuVT4IICdoiTDtP3ODJ5eo9e4Inluz3EA6azCYcP8L3F-5TrLjc--Tz5c3c14_lNLvUbKG1iK-YHJWvXsHBvoOjIMwOJq_c77o57YIKGpz"
     # password = "hello@example.com"
