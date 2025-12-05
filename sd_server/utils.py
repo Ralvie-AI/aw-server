@@ -146,34 +146,6 @@ def stop_process_by_exe(exe_name):
     logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
 
-def capture_screenshot(screenshot_folder=None):
-    logger.info(f"capture_screenshot")
-    system = platform.system()
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    if screenshot_folder is None:
-        if system == "Windows":
-            screenshot_folder = os.path.join(os.environ['LOCALAPPDATA'], "Sundial", "Sundial", "Screenshots", today)
-        elif system == "Darwin":  # macOS
-            screenshot_folder = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Sundial", "Screenshots", today)
-    
-    print("DEBUG system =", system)
-    print("DEBUG user home =", os.path.expanduser("~"))
-    print("DEBUG screenshot_folder =", screenshot_folder)
-    print("DEBUG exists? =", os.path.isdir(screenshot_folder))
-
-    if not os.path.isdir(screenshot_folder):
-        os.makedirs(screenshot_folder)
-
-    # Generate timestamp
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    output_file = f"{screenshot_folder}/screenshot_{timestamp}.png"
-
-    with mss() as sct:
-        sct.shot(output=output_file)
-
-    return output_file
-
 
 def convert_datetime_string(dt_string: str) -> str:
     """
@@ -208,7 +180,6 @@ def convert_datetime_string(dt_string: str) -> str:
         return f"Error: Failed to parse datetime string. Details: {e}"
       
 if __name__ == '__main__':
-    capture_screenshot()
     password = "hello@example.com"
     uuid_str = get_system_uuid()
     uuid_str = "5FB99364-A4CD-EE11-2000-316655F2F09C"

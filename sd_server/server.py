@@ -17,7 +17,7 @@ from flask import (
 )
 from flask_cors import CORS
 
-from . import rest
+from . import rest, screen_shot
 from .api import ServerAPI, ScreenShotQueue
 from .custom_static import get_custom_static_blueprint
 from .log import FlaskLogHandler
@@ -29,59 +29,6 @@ app_folder = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(app_folder, "static")
 
 root = Blueprint("root", __name__, url_prefix="/")
-screen_shot = Blueprint("screenshot", __name__, url_prefix="/screenshot")
-
-@screen_shot.route('/', methods=['POST'])
-def screenshot():
-    print("screen shot testing")
-    json_data = request.get_json()  # Expects Content-Type: application/json
-    if not json_data:
-        return jsonify({'error': 'No JSON payload provided'}), 400
-
-    current_app.api.db.get_screenshot_record()
-
-    latest_event = current_app.api.db.get_lastest_event()
-    try:
-        latest_screenshot = current_app.api.db.get_latest_screenshot()
-    except Exception as e:
-        latest_screenshot = None 
-
-    event_data = model_to_dict(latest_event)  
-    get_afk_data = json.loads(event_data.get('datastr'))
-    file_location = json_data.get('file_location') 
-
-
-    # if is_idle_screenshot was false, no need to take screen shot for idle time.
-    
-    if get_afk_data.get('status') == 'afk' and not json_data.get('is_idle_screenshot'):
-        os.remove(file_location)
-        return jsonify({
-                        'result': "Success",
-                        'message': 'Screen capture is disabled when the system is idle.',     
-                    }), 200   
-
-    if latest_screenshot:
-
-        if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
-            return jsonify({
-            'result': "Conflict",
-            'message': 'Already exists',     
-            }), 409
-
-    data = {
-            "event": str(event_data.get('eventId')),
-            "file_path": json_data.get('file_location'),
-            "file_path": file_location
-            }
-    current_app.api.db.save_screenshot(data)  
-
-    return jsonify({
-        'result': file_location,
-        'message': 'JSON processed successfully',
-        'received_data': json_data
-    }), 201
-
-
 
 class AWFlask(Flask):
     def __init__(
@@ -132,7 +79,7 @@ class AWFlask(Flask):
         self.api.screen_shot_queue.start()
         self.register_blueprint(root)
         self.register_blueprint(rest.blueprint)
-        self.register_blueprint(screen_shot)
+        self.register_blueprint(screen_shot.blueprint)
         # self.register_blueprint(get_custom_static_blueprint(custom_static))
 
 

@@ -14,7 +14,7 @@ SCREEN_SHOT_TIME = 300 # 5  minutes
 
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
-TMP_VERSION = "1.1.8"
+TMP_VERSION = "1.2.0"
 if STAGING == 1:
     HOST = HOST_DEV
     VERSION_DISPLAY = f"{TMP_VERSION}_beta"

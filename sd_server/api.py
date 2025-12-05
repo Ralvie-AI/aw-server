@@ -40,7 +40,7 @@ from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 from .__about__ import __version__
 from .exceptions import NotFound
 
-HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=jpg"  
+HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=json"
 
 MAX_RETRIES = 3
 DELAY_SECONDS = 3  # wait before retry
