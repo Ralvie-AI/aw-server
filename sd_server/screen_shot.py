@@ -66,7 +66,8 @@ def screenshot():
     UUID = get_uuid_address()
 
     associated_data = f"image_format={image_format},user_id={user_id},company_id={company_id},UUID={UUID}".encode('utf-8')
-    encrypted_data_json = encrypt_image_to_json_gcm(file_location, associated_data, public_key_path=PUBLIC_KEY)
+    public_key_file = PUBLIC_KEY.format(email=creds.get('email'), company_id=company_id)
+    encrypted_data_json = encrypt_image_to_json_gcm(file_location, associated_data, public_key_path=public_key_file)
     file_path_without_ext, ext = os.path.splitext(file_location)
     json_file = f"{file_path_without_ext}.json"    
 

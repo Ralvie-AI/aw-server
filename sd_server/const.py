@@ -14,7 +14,7 @@ SCREEN_SHOT_SYNC_TIME = 60 # 1  minutes
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
 
-PUBLIC_KEY = os.path.join(os.environ['LOCALAPPDATA'], "Sundial", "Sundial", "sd-server", "public.pem")
+PUBLIC_KEY = os.path.join(os.environ['LOCALAPPDATA'], 'Sundial', 'Sundial', 'sd-server', '{email}-{company_id}-public.pem')
 
 
 if DEVELOPMENT_MODE == 0:
