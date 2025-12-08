@@ -1655,14 +1655,14 @@ class ScreenShotQueue(threading.Thread):
                             else:
                                 if record.object_key:
                                     sync_result = self.server.retry_sync_screenshot_to_ralvie(record.object_key, record)
-                                    logger.info(f"result url => {sync_result}")
+                                    logger.info(f"result url retry => {sync_result}")
                                     if sync_result == "RCI0000":
                                         logger.info(f"record.sync_status after => {record.sync_status}")
                                         logger.info(f"record.object_key after => {record.object_key}")
                                         if record.sync_status == 1:
-                                            logger.info(f"dir => {dir(record)}")
+                                            logger.info(f"dir retry => {dir(record)}")
                                             img_file_path = record.file_path
-                                            logger.info(f"img_file_path => {img_file_path}")
+                                            logger.info(f"img_file_path retry => {img_file_path}")
                                             os.remove(img_file_path)
                                             record.delete_instance()
 
