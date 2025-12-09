@@ -48,16 +48,17 @@ def screenshot():
         return jsonify({
                         'result': "Success",
                         'message': 'Screen capture is disabled when the system is idle.',     
+   
                     }), 200 
 
-    if latest_screenshot:        
+    # Comment for a while, I think it will not need.
+    # if latest_screenshot:
+    #     if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
 
-        if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
-
-            return jsonify({
-                        'result': "Conflict",
-                        'message': 'Already exists',     
-                    }), 409
+    #         return jsonify({
+    #                     'result': "Conflict",
+    #                     'message': 'Already exists',     
+    #                 }), 409
     
     creds = credentials()
     image_format = "png"
