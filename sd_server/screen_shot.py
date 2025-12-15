@@ -57,14 +57,14 @@ def screenshot():
                         'message': 'Screen capture is disabled when the system is idle.',     
                     }), 200 
 
-    if latest_screenshot:        
+    # if latest_screenshot:        
 
-        if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
+    #     if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
 
-            return jsonify({
-                        'result': "Conflict",
-                        'message': 'Already exists',     
-                    }), 409
+    #         return jsonify({
+    #                     'result': "Conflict",
+    #                     'message': 'Already exists',     
+    #                 }), 409
     
     creds = credentials()
     image_format = "png"
@@ -93,6 +93,10 @@ def screenshot():
         logger.info(f"Error: File not found at {e}")
     except Exception as e:
         logger.info(f"Error: {e}")
+    
+    logger.info(f"json file exists => {os.path.exists(json_file)}")
+    if os.path.exists(json_file):
+        os.remove(file_location)
         
     data = {
             "event": str(event_data.get('eventId')),
