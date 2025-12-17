@@ -488,8 +488,8 @@ class ServerAPI:
                     # logger.info(f"result {result}")
         
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
-                        logger.info(f"No need to sync the event to the server.")
-                        return {"status": "success"}
+                        # logger.info(f"No need to sync the event to the server.")
+                        return {"status": "No need to sync the event not more than 30 minute."}
 
                 payload = {"userId": userId, "companyId": companyId, "events": events}
                 endpoint = "/web/event"
@@ -502,10 +502,10 @@ class ServerAPI:
                         
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat()) 
-                        time.sleep(len(events))
+                        # time.sleep(len(events))
                         # logger.info(f"Successfully synced {len(events)} events.")
                         # logger.info(f"Successfully synced events {event_ids}")
-                        return {"status": "success"}
+                        return {"status": f"Successfully synced total events => {len(event_ids)}" }
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
 
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
@@ -543,7 +543,7 @@ class ServerAPI:
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
                         send_to_gui("fail")
-                        return {"status": "success"}
+                        return {"status": "Server rejected these events"}
                     elif response_data.get("code") == NO_USER_FOUND:
 
                         import keyring
@@ -555,7 +555,7 @@ class ServerAPI:
                         logger.info(f"response_data {response_data}")
                         logger.error(f"No user found.")
                         send_to_gui("no_user")
-                        return {"status": "success"}
+                        return {"status": "User does not exist"}
                     else:
                         logger.error(f"Unexpected response code: {response_data.get('code')}")
                         return {"status": "unexpected_response_code", "code": response_data.get("code")}
