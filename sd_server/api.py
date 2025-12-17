@@ -568,10 +568,10 @@ class ServerAPI:
                 afk_dict["title"] = record.event.title
 
             payload = {"userId": userId, 
-                       "companyId": companyId,    
+                        "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
-                       "eventId": str(record.event.eventId),     
-                       "duration": float(record.event.duration),
+                        "eventId": record.event.eventId.hex ,     
+                        "duration": float(record.event.duration),
                         "data": afk_dict,    
                         "applicationName": record.event.application_name,         
                         "screenshotObjectkey": object_key,
@@ -642,10 +642,10 @@ class ServerAPI:
                 afk_dict["title"] = record.event.title
 
             payload = {"userId": userId, 
-                       "companyId": companyId,    
+                        "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
-                       "eventId": str(record.event.eventId),     
-                       "duration": float(record.event.duration),
+                        "eventId": record.event.eventId.hex ,     
+                        "duration": float(record.event.duration),
                         "data": afk_dict,
                         "applicationName": record.event.application_name,         
                         "screenshotObjectkey": object_key,
