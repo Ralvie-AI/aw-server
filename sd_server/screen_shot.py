@@ -26,39 +26,20 @@ def screenshot():
     if not json_data:
         return jsonify({'error': 'No JSON payload provided'}), 400
     
-    current_app.api.db.get_screenshot_record()
-
-    latest_event = current_app.api.db.get_lastest_event()
-    try:
-        latest_screenshot = current_app.api.db.get_latest_screenshot()
-    except Exception as e:
-        latest_screenshot = None 
-   
+    latest_event = current_app.api.db.get_lastest_event()   
     event_data = model_to_dict(latest_event)
 
     get_afk_data = json.loads(event_data.get('datastr'))
     file_location = json_data.get('file_location') 
     logger.info(f"file_location => {file_location}")
 
-
-    # if is_idle_screenshot was false, no need to take screen shot for idle time.
-    
+    # if is_idle_screenshot was false, no need to take screen shot for idle time.    
     if get_afk_data.get('status') == 'afk' and not json_data.get('is_idle_screenshot'):
         os.remove(file_location)
         return jsonify({
                         'result': "Success",
-                        'message': 'Screen capture is disabled when the system is idle.',     
-   
+                        'message': 'It will not take screenshot because Idle Time Screenshot is disabled ',   
                     }), 200 
-
-    # Comment for a while, I think it will not need.
-    # if latest_screenshot:
-    #     if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
-
-    #         return jsonify({
-    #                     'result': "Conflict",
-    #                     'message': 'Already exists',     
-    #                 }), 409
     
     creds = credentials()
     image_format = "png"
