@@ -4,6 +4,7 @@ import logging
 import platform
 import sys
 
+
 from flask import (
     Blueprint,
     current_app,
@@ -11,6 +12,7 @@ from flask import (
     request
 )
 from playhouse.shortcuts import model_to_dict
+from datetime import datetime 
 
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 from sd_main.sd_desktop.util import (credentials)
@@ -42,10 +44,13 @@ def screenshot():
         latest_screenshot = None 
    
     event_data = model_to_dict(latest_event)
+    logger.info(f"latest_event => {latest_event}")
 
     get_afk_data = json.loads(event_data.get('datastr'))
     file_location = json_data.get('file_location') 
+    created_at = json_data.get('created_at')
     logger.info(f"file_location => {file_location}")
+    logger.info(f"created_at => {created_at}")
 
 
     # if is_idle_screenshot was false, no need to take screen shot for idle time.
@@ -82,12 +87,6 @@ def screenshot():
 
         with open(json_file, 'w') as f:
             f.write(encrypted_data_json)
-        
-        # logger.info(f"Created encrypted JSON file => {json_file}")
-
-        # if os.path.exists(file_location):
-        #     os.remove(file_location)
-        #     logger.info(f"Removed original PNG after conversion => {file_location}")
             
     except FileNotFoundError as e:
         logger.info(f"Error: File not found at {e}")
@@ -101,6 +100,7 @@ def screenshot():
     data = {
             "event": str(event_data.get('eventId')),
             "file_path": json_file,
+            'created_at': datetime.fromisoformat(created_at)
             }
     
     current_app.api.db.save_screenshot(data)     
