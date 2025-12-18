@@ -473,7 +473,7 @@ class ServerAPI:
                     logger.info(f"result {result}")
         
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
-                        return {"status": "success"}
+                        return {"status": "No need to sync the event not more than 30 minute."}
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS"}
                 endpoint = "/web/event"
@@ -489,7 +489,7 @@ class ServerAPI:
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
                         logger.info(f"Successfully synced {len(events)} events.")
                         logger.info(f"Events {event_ids}")
-                        return {"status": "success"}
+                        return {"status": f"Successfully synced total events => {len(event_ids)}" }
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
                         macos_pid = get_running_process_id("sd-watcher-window-macos")
                         afk_pid = get_running_process_id("sd-watcher-afk")
