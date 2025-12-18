@@ -1,6 +1,7 @@
 import os
 import json
 import logging 
+from datetime import datetime 
 
 from flask import (
     Blueprint,
@@ -31,7 +32,9 @@ def screenshot():
 
     get_afk_data = json.loads(event_data.get('datastr'))
     file_location = json_data.get('file_location') 
+    created_at = json_data.get('created_at') 
     logger.info(f"file_location => {file_location}")
+    logger.info(f"created_at => {created_at}")
 
     # if is_idle_screenshot was false, no need to take screen shot for idle time.    
     if get_afk_data.get('status') == 'afk' and not json_data.get('is_idle_screenshot'):
@@ -70,6 +73,7 @@ def screenshot():
     data = {
             "event": str(event_data.get('eventId')),
             "file_path": json_file,
+            'created_at': datetime.fromisoformat(created_at)
             }
     
     current_app.api.db.save_screenshot(data)     
