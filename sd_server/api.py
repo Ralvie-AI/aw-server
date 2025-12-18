@@ -1604,7 +1604,7 @@ class ScreenShotQueue(threading.Thread):
                     self._try_connect()
                 print("self.connected ", self.connected)
                 if self.connected:
-                    logger.info("Connected to internet. Attempting to sync events.")
+                    logger.info("Connected to internet. Attempting to sync screenshot.")
                     try:
                        for record in self.server.db.get_screenshot_record():
                             pre_signed_url, object_key = self.get_pre_signed_url()
