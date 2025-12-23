@@ -508,6 +508,11 @@ class ServerAPI:
                         return {"status": f"Successfully synced total events => {len(event_ids)}" }
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
 
+                        is_failed_event = False
+                        failed_event_ids = set()
+
+                        logger.info(f"is_failed_event 1 => {is_failed_event}")
+
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
                         threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
@@ -540,6 +545,16 @@ class ServerAPI:
                                 self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
                                 logger.info(f"Updated the events of mismatched mac address to 2.")
                                 time.sleep(5)
+
+
+                        if is_failed_event:                             
+                             self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
+                             logger.info(f"Updated the events of mismatched mac address to 2 after stopping the process.")
+                             logger.info(f"is_failed_event 3 => {is_failed_event}")
+
+                        logger.info(f"is_failed_event 4 => {is_failed_event}")
+                        
+                        threading.Thread(target=stop_process_by_exe, args=("sd-server.exe",)).start()
 
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
@@ -1583,12 +1598,17 @@ class ScreenShotQueue(threading.Thread):
         self._stop_event.set()
 
     def get_pre_signed_url(self):
-        result = None 
+        result = None, None, None
+        headers={'X-SUNDIAL-UUID': get_uuid_address()}
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                res = requests.get(HOST_TO_UPLOAD_SHOT_GET)
-                data = res.json()
-                result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey")
+                res = requests.get(HOST_TO_UPLOAD_SHOT_GET, headers=headers)
+                data = res.json()                
+                logger.info(f"result get_pre_signed_url => {data}")
+                if data.get('code') == REJECTED_SYNC_STATUS:
+                    result = None, None, REJECTED_SYNC_STATUS
+                else:
+                    result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey"), data.get('code')
                 break
             except Exception as e:
                 logging.error("[ERROR]: %s", e)
@@ -1656,10 +1676,14 @@ class ScreenShotQueue(threading.Thread):
                 print("self.connected ", self.connected)
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync screenshot.")
+                    response_code = None
                     try:
 
                         for record in self.server.db.get_screenshot_record():
-                            pre_signed_url, object_key = self.get_pre_signed_url()                            
+                            pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
+                            if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
+                                response_code = REJECTED_SYNC_STATUS
+                                break                       
                             res = self.upload_screenshot(record.file_path, pre_signed_url)
                             if res.get('status') == "SUCCESS":
                                 sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)
@@ -1685,6 +1709,28 @@ class ScreenShotQueue(threading.Thread):
                                             logger.info(f"img_file_path retry => {img_file_path}")
                                             os.remove(img_file_path)
                                             record.delete_instance()
+
+                        if response_code == REJECTED_SYNC_STATUS:
+                            threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
+                            threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
+                            threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
+                            logger.info("Server rejected these events test asdf")
+
+                            for record in self.server.db.get_screenshot_record():
+                                if os.path.exists(record.file_path):
+                                    os.remove(record.file_path)
+                                record.delete_instance()
+                            
+                            data = self.server.get_non_sync_events()
+                            if data.get("status") != "NoEvents":
+                                events = data.get("events", [])
+                                if events:                                        
+                                    event_ids = [obj['event_id'] for obj in events]
+                                    self.server.db.update_server_sync_status(list_of_ids=list(event_ids), new_status=2)
+
+                            threading.Thread(target=stop_process_by_exe, args=("sd-server.exe",)).start()
+                            logger.info("To logout automatically")
+                            send_to_gui("fail")
 
                     except Exception as e:
                         logger.error(f"Error during upload screenshot: {e}")
