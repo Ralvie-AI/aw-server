@@ -641,15 +641,7 @@ class ServerAPI:
                         record.sync_status = 1
                         record.save()
                         logging.info(f"save record {record}")
-                        uploaded_success = json_data.get('code')
-                    elif  json_data.get('code') == REJECTED_SYNC_STATUS:
-                        logger.info(f"Delete the screenshot record")
-                        os.remove(record.file_path)
-                        record.delete_instance()
-                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
-                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
-                        threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
-                        send_to_gui("fail")
+                        uploaded_success = json_data.get('code')                   
                     else:
                         uploaded_success = json_data.get('code')
                         record.object_key = object_key
@@ -724,17 +716,7 @@ class ServerAPI:
                         record.sync_status = 1
                         record.save()
                         logging.info(f"save record {record}")
-                        uploaded_success = json_data.get('code')
-
-                    elif  json_data.get('code') == REJECTED_SYNC_STATUS:
-                        logger.info(f"Delete the screenshot record")
-                        os.remove(record.file_path)
-                        record.delete_instance()
-                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
-                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
-                        threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start() 
-
-                        send_to_gui("fail")
+                        uploaded_success = json_data.get('code')                   
 
                     break
                 except Exception as e:
