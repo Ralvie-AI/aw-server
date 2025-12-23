@@ -40,7 +40,7 @@ from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 from .__about__ import __version__
 from .exceptions import NotFound
 
-HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=json"
+HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}" 
 
 MAX_RETRIES = 3
 DELAY_SECONDS = 3  # wait before retry
@@ -491,11 +491,18 @@ class ServerAPI:
                         logger.info(f"Events {event_ids}")
                         return {"status": f"Successfully synced total events => {len(event_ids)}" }
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
+                        is_failed_event = False
+                        failed_event_ids = set()
+
+                        logger.info(f"is_failed_event 1 => {is_failed_event}")
                         macos_pid = get_running_process_id("sd-watcher-window-macos")
                         afk_pid = get_running_process_id("sd-watcher-afk")
+                        screenshot_pid = get_running_process_id("sd-pixel-engine")
                 
                         threading.Thread(target=stop_process, args=(macos_pid,)).start()
                         threading.Thread(target=stop_process, args=(afk_pid,)).start()
+                        threading.Thread(target=stop_process, args=(screenshot_pid,)).start()
+                        time.sleep(5)
 
                         if response_data.get('data').get('events'):
                             success_event_ids = response_data.get('data').get('events')
@@ -516,8 +523,18 @@ class ServerAPI:
 
                         else:
                             self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
-                            logger.info(f"Updated the events of mismatched mac address to 2.")
+                            logger.info(f"Updated the events id {event_ids} of mismatched mac address to 2.")
                             time.sleep(5)
+                        
+                        if is_failed_event:                             
+                             self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
+                             logger.info(f"Updated the events of mismatched mac address to 2 after stopping the process.")
+                             logger.info(f"is_failed_event 3 => {failed_event_ids}")
+
+                        logger.info(f"is_failed_event 4 => {failed_event_ids}")
+                        server_pid = get_running_process_id("sd-server")
+                        
+                        threading.Thread(target=server_pid, args=("sd-server",)).start()
 
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
@@ -611,7 +628,7 @@ class ServerAPI:
             return uploaded_success           
 
         except Exception as e:            
-            logger.error(f"Error during sync_events_to_ralvie: {e}")
+            logger.error(f"Error during sync screenshot to ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}
     
     def retry_sync_screenshot_to_ralvie(self, object_key, record):
@@ -670,7 +687,7 @@ class ServerAPI:
                         record.sync_status = 1
                         record.save()
                         logging.info(f"save record {record}")
-                        uploaded_success = json_data.get('code')                    
+                        uploaded_success = json_data.get('code')  
                     break
                 except Exception as e:
                     logging.error("[ERROR]: %s", e)
@@ -1533,12 +1550,27 @@ class ScreenShotQueue(threading.Thread):
 
 
     def get_pre_signed_url(self):
-        result = None 
+        result = None, None, None
+        userId = load_key("userId")
+        logger.info(f"User ID from load_key get_pre_signed_url: {userId}")
+        cached_credentials = get_credentials(CACHE_KEY)
+
+        if cached_credentials is None:
+            logger.info(f"There was no keychain_item_exists.")
+
+        companyId = cached_credentials.get('companyId')
+        headers={'X-SUNDIAL-UUID': get_uuid_address()}
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                res = requests.get(HOST_TO_UPLOAD_SHOT_GET)
-                data = res.json()
-                result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey")
+                url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=HOST, user_id=userId, company_id=companyId )
+                logger.info(f"url => {url}")
+                res = requests.get(url, headers=headers)
+                data = res.json()                
+                logger.info(f"result get_pre_signed_url => {data}")
+                if data.get('code') == REJECTED_SYNC_STATUS:
+                    result = None, None, REJECTED_SYNC_STATUS
+                else:
+                    result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey"), data.get('code')
                 break
             except Exception as e:
                 logging.error("[ERROR]: %s", e)
@@ -1605,9 +1637,13 @@ class ScreenShotQueue(threading.Thread):
                 print("self.connected ", self.connected)
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync screenshot.")
+                    response_code = None
                     try:
-                       for record in self.server.db.get_screenshot_record():
-                            pre_signed_url, object_key = self.get_pre_signed_url()
+                        for record in self.server.db.get_screenshot_record():
+                            pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
+                            if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
+                                response_code = REJECTED_SYNC_STATUS
+                                break    
                             res = self.upload_screenshot(record.file_path, pre_signed_url)
                             if res.get('status') == "SUCCESS":
                                 sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)
@@ -1632,7 +1668,34 @@ class ScreenShotQueue(threading.Thread):
                                             img_file_path = record.file_path
                                             logger.info(f"img_file_path => {img_file_path}")
                                             os.remove(img_file_path)
-                                            record.delete_instance()                                                      
+                                            record.delete_instance()      
+
+                        if response_code == REJECTED_SYNC_STATUS:
+                            macos_pid = get_running_process_id("sd-watcher-window-macos")
+                            afk_pid = get_running_process_id("sd-watcher-afk")
+                            screenshot_pid = get_running_process_id("sd-pixel-engine")
+                    
+                            threading.Thread(target=stop_process, args=(macos_pid,)).start()
+                            threading.Thread(target=stop_process, args=(afk_pid,)).start()
+                            threading.Thread(target=stop_process, args=(screenshot_pid,)).start()
+                            logger.info("Server rejected these events test asdf")
+
+                            for record in self.server.db.get_screenshot_record():
+                                if os.path.exists(record.file_path):
+                                    os.remove(record.file_path)
+                                record.delete_instance()
+                            
+                            data = self.server.get_non_sync_events()
+                            if data.get("status") != "NoEvents":
+                                events = data.get("events", [])
+                                if events:                                        
+                                    event_ids = [obj['event_id'] for obj in events]
+                                    self.server.db.update_server_sync_status(list_of_ids=list(event_ids), new_status=2)
+
+                            server_pid = get_running_process_id("sd-server")       
+                            threading.Thread(target=server_pid, args=("sd-server",)).start()
+                            logger.info("To logout automatically")
+                            send_to_gui("fail")                                                
 
                     except Exception as e:
                         logger.error(f"Error during upload screenshot: {e}")
