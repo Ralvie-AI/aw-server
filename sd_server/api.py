@@ -37,7 +37,7 @@ from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_US
                              PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_SYNC_TIME)
 
 
-HOST_TO_UPLOAD_SHOT_GET = f"{PROTOCOL}://{HOST}/web/events/screenshot?fileFormat=json"  
+HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
 
 MAX_RETRIES = 3
 DELAY_SECONDS = 3  # wait before retry
@@ -512,10 +512,12 @@ class ServerAPI:
                         failed_event_ids = set()
 
                         logger.info(f"is_failed_event 1 => {is_failed_event}")
+                        logger.info(f"is_failed_event 1 => {is_failed_event}")
 
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
                         threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
+                        time.sleep(5)
 
                         if response_data.get('data').get('events'):
                             success_event_ids = response_data.get('data').get('events')
@@ -543,16 +545,16 @@ class ServerAPI:
 
                             else:
                                 self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
-                                logger.info(f"Updated the events of mismatched mac address to 2.")
+                                logger.info(f"Updated the events id {event_ids} of mismatched mac address to 2.")
                                 time.sleep(5)
 
 
                         if is_failed_event:                             
                              self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
                              logger.info(f"Updated the events of mismatched mac address to 2 after stopping the process.")
-                             logger.info(f"is_failed_event 3 => {is_failed_event}")
+                             logger.info(f"is_failed_event 3 => {failed_event_ids}")
 
-                        logger.info(f"is_failed_event 4 => {is_failed_event}")
+                        logger.info(f"is_failed_event 4 => {failed_event_ids}")
                         
                         threading.Thread(target=stop_process_by_exe, args=("sd-server.exe",)).start()
 
@@ -1581,10 +1583,20 @@ class ScreenShotQueue(threading.Thread):
 
     def get_pre_signed_url(self):
         result = None, None, None
+        userId = load_key("userId")
+        logger.info(f"User ID from load_key get_pre_signed_url: {userId}")
+        cached_credentials = get_credentials(CACHE_KEY)
+
+        if cached_credentials is None:
+            logger.info(f"There was no keychain_item_exists.")
+
+        companyId = cached_credentials.get('companyId')
         headers={'X-SUNDIAL-UUID': get_uuid_address()}
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                res = requests.get(HOST_TO_UPLOAD_SHOT_GET, headers=headers)
+                url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=HOST, user_id=userId, company_id=companyId )
+                logger.info(f"url => {url}")
+                res = requests.get(url, headers=headers)
                 data = res.json()                
                 logger.info(f"result get_pre_signed_url => {data}")
                 if data.get('code') == REJECTED_SYNC_STATUS:

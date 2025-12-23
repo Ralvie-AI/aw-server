@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import base64
+import time
 from datetime import datetime
 
 import win32file
@@ -228,9 +229,10 @@ def get_uuid_address(email=None, system_uuid=None):
             return encrypt_system_uuid(system_uuid, lowercase_password)
     return None
 
-def stop_process_by_exe(exe_name):
+def stop_process_by_exe(exe_name, time_sleep=0.2):
     logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
+    time.sleep(time_sleep)  # wait 200ms for process cleanup
 
 def convert_datetime_string(dt_string: str) -> str:
     """
