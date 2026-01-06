@@ -235,6 +235,13 @@ def stop_process_by_exe(exe_name, time_sleep=0.2):
     time.sleep(time_sleep)  # wait 200ms for process cleanup
 
 def convert_datetime_string(dt_string: str) -> str:
+    from dateutil import parser
+    from zoneinfo import ZoneInfo
+
+    dt = parser.parse(dt_string)
+    return dt.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def convert_datetime_string_old(dt_string: str) -> str:
     """
     Converts a datetime string from the format 'YYYY-MM-DD HH:MM:SS.ffffff+00:00' 
     to the format 'YYYY-MM-DDT HH:MM:SSZ' (ISO 8601 without fractional seconds, 
