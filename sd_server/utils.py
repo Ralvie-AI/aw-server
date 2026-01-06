@@ -13,7 +13,6 @@ import win32file
 import pywintypes
 import win32com.client
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from mss import mss
 
 from sd_core.cache import keychain_item_exists, get_password
 from sd_server.const import CACHE_KEY
