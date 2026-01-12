@@ -1,5 +1,8 @@
+import os 
 import logging
 import sys
+
+import psutil
 
 from sd_core.log import setup_logging
 from sd_datastore import get_storage_methods
@@ -9,6 +12,27 @@ from .config import config
 from .server import _start
 
 logger = logging.getLogger(__name__)
+
+def is_already_running() -> bool:
+    """Checks for another instance of the bundled .exe or script."""
+    current_pid = os.getpid()
+    
+    # If bundled by PyInstaller, sys.executable is the .exe path
+    # If running as script, sys.executable is python.exe (we use __file__ instead)
+    if getattr(sys, 'frozen', False):
+        current_name = os.path.basename(sys.executable)
+    else:
+        current_name = os.path.basename(__file__)
+    
+    try:
+        for proc in psutil.process_iter(['pid', 'name']):
+            # We filter for the name and ensure it's not THIS specific process
+            if proc.info['name'] and proc.info['name'].lower() == current_name.lower():
+                if proc.info['pid'] != current_pid:
+                    return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        pass
+    return False
 
 
 def main():
@@ -42,6 +66,21 @@ def main():
     # If the custom_static setting is set to true the static static file is used.
     if settings.custom_static:
         logger.info(f"Using custom_static: {settings.custom_static}")
+
+    
+    # Check before initializing the watcher or logs
+    current_pid = os.getpid()
+    logger.info(f"current_pid = > {current_pid}")
+    if getattr(sys, 'frozen', False):
+        current_name = os.path.basename(sys.executable)
+    else:
+        current_name = os.path.basename(__file__)
+
+    logger.info(f"current_name = > {current_name}")
+    if is_already_running():
+        # Using stdout because logs aren't initialized yet
+        logger.info("Another instance server is already running. Closing this one.")
+        sys.exit(0)
 
     logger.info("Starting up...")
     _start(

@@ -6,6 +6,8 @@ import hashlib
 import json
 import logging
 import base64
+import time
+from datetime import datetime
 
 import win32file
 import pywintypes
@@ -15,6 +17,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sd_core.cache import keychain_item_exists, get_password
 from sd_server.const import CACHE_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE
 
+
 logger = logging.getLogger(__name__)
 
 PIPE_NAME = r'\\.\pipe\AppSocket'
@@ -23,6 +26,7 @@ PIPE_NAME = r'\\.\pipe\AppSocket'
 # Generate uuid if WMIC and PowerShell are not available
 def generate_uuid():
     import ctypes
+    import hashlib
     import uuid
     import socket
     import winreg
@@ -37,9 +41,9 @@ def generate_uuid():
             if DEVELOPMENT_MODE == LOGGING_VERBOSE:
                 logger.info(f"get_machine_guid => {value}")
 
+
             return value
-        except Exception as e:
-            logger.info(f"Error get_machine_guid => {e}")
+        except Exception:
             return None
 
     def get_volume_serial(drive="C:\\"):
@@ -64,8 +68,7 @@ def generate_uuid():
                 logger.info(f"get_volume_serial => {value}")
 
             return value
-        except Exception as e:
-            logger.info(f"Error get_volume_serial => {e}")
+        except Exception:
             return None
 
     def get_hostname():
@@ -78,7 +81,6 @@ def generate_uuid():
 
             return host_name
         except:
-            logger.info(f"No hostname found.")
             return None
 
     def generate_machine_uuid():
@@ -113,6 +115,7 @@ def generate_uuid():
 
         if DEVELOPMENT_MODE == LOGGING_VERBOSE:
             logger.info(f"machine_uuid => {machine_uuid}")
+
 
         return str(machine_uuid).upper()
     
@@ -159,6 +162,8 @@ def send_to_gui(msg: str):
         return False
 
 def get_system_uuid_from_win32com_client():
+
+    logger.info("Get UUID from get_system_uuid_from_win32com_client")
     try:
         wmi = win32com.client.GetObject("winmgmts:\\\\.\\root\\cimv2")
         item_uuid = None
@@ -174,6 +179,7 @@ def get_system_uuid_from_win32com_client():
         return item_uuid
     except Exception as e:
         logger.info(f"get_system_uuid_from_win32com_client: {str(e)}")
+        logger.info(f"Get UUID from generate_uuid")
         return generate_uuid()
 
 def get_system_uuid_from_shell():
@@ -182,7 +188,8 @@ def get_system_uuid_from_shell():
             ['powershell', '-Command', '(Get-CimInstance -Class Win32_ComputerSystemProduct).UUID'],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
         )
         uuid = result.stdout.strip()
 
@@ -190,11 +197,12 @@ def get_system_uuid_from_shell():
             logger.info(f"get_system_uuid_from_shell type => {type(uuid)}")
             logger.info(f"get_system_uuid_from_shell uuid => {uuid}")
             logger.info(f"get_system_uuid_from_shell uuid len => {len(uuid)}")
-
+        
         if uuid:
             return uuid
         else:
-            return get_system_uuid_from_win32com_client()
+            return get_system_uuid_from_win32com_client()        
+        
     except subprocess.CalledProcessError as e:
         logger.info(f"Error get_system_uuid_from_shell => {e}") 
         return get_system_uuid_from_win32com_client()        
@@ -211,8 +219,10 @@ def get_system_uuid():
 
     if system == "Windows":
         try:
-            output = subprocess.check_output(["wmic", "csproduct", "get", "uuid"]).decode()
-            lines = output.strip().split("\n")      
+            output = subprocess.check_output(["wmic", "csproduct", "get", "uuid"],
+                                             creationflags=subprocess.CREATE_NO_WINDOW,
+                                             ).decode()
+            lines = output.strip().split("\n")
 
             if DEVELOPMENT_MODE == LOGGING_VERBOSE:
                 logger.info(f"get_system_uuid => {lines}")
@@ -228,12 +238,13 @@ def get_system_uuid():
                 return uuid 
             else:
                 return get_system_uuid_from_shell()
+            
         except FileNotFoundError as e:
             logger.info(f"FileNotFoundError => {e}") 
             return get_system_uuid_from_shell()
         except Exception as e:
             logger.info(f"Exception error => {e}")
-            return get_system_uuid_from_shell()    
+            return get_system_uuid_from_shell()   
 
     elif system == "Darwin":  # macOS
         output = subprocess.check_output(
@@ -250,15 +261,16 @@ def get_uuid_address(email=None, system_uuid=None):
     if not system_uuid:
         system_uuid = get_system_uuid()
 
-    if email: 
+    if email:                
+        logger.info(f"Getting uuid address from email.")
         key = email
         lowercase_password = key.lower()
 
         if DEVELOPMENT_MODE == LOGGING_VERBOSE:
             logger.info(f"mail lowercase {lowercase_password}")
-
+        
         return encrypt_system_uuid(system_uuid, lowercase_password)
-    
+
     key_item_exists = keychain_item_exists(CACHE_KEY)
     logger.info(f"Getting max address key_item_exists {key_item_exists}")
     if key_item_exists:
@@ -266,14 +278,17 @@ def get_uuid_address(email=None, system_uuid=None):
         if items:
             result = json.loads(items)
             key = result.get('email')
+            logger.info(f"Getting email from cache: {key}")
             lowercase_password = key.lower()
+            logger.info(f"mail lowercase {lowercase_password}")
             return encrypt_system_uuid(system_uuid, lowercase_password)
     return None
 
-def stop_process_by_exe(exe_name):
+def stop_process_by_exe(exe_name, time_sleep=0.2):
     if DEVELOPMENT_MODE == LOGGING_VERBOSE:
-        logger.info(f"killing start cmd_name {exe_name}")
+        logger.info(f"killing start cmd_name {exe_name}")   
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
+    time.sleep(time_sleep)  # wait 200ms for process cleanup
 
 def add_end_time(start_time, seconds_to_add):
     from datetime import datetime, timedelta
@@ -295,6 +310,45 @@ def add_end_time(start_time, seconds_to_add):
     end_time = rounded_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     return end_time
 
+def convert_datetime_string(dt_string: str) -> str:
+    from dateutil import parser
+    from zoneinfo import ZoneInfo
+
+    dt = parser.parse(dt_string)
+    return dt.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def convert_datetime_string_old(dt_string: str) -> str:
+    """
+    Converts a datetime string from the format 'YYYY-MM-DD HH:MM:SS.ffffff+00:00' 
+    to the format 'YYYY-MM-DDT HH:MM:SSZ' (ISO 8601 without fractional seconds, 
+    using 'T' separator and 'Z' suffix for UTC).
+
+    Args:
+        dt_string: The input datetime string (e.g., '2025-11-03 05:47:23.663000+00:00').
+
+    Returns:
+        The converted datetime string (e.g., '2025-11-03T05:47:23Z').
+    """
+    
+    # Define the format of the input string
+    INPUT_FORMAT = '%Y-%m-%d %H:%M:%S.%f%z'
+    
+    # Define the desired output format (T separator, no fractional seconds, Z suffix for UTC)
+    OUTPUT_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+
+    try:
+        # Step 1: Parse the input string into a datetime object
+        dt_object = datetime.strptime(dt_string, INPUT_FORMAT)
+        
+        # Step 2: Format the datetime object to the target string format
+        formatted_string = dt_object.strftime(OUTPUT_FORMAT)
+        
+        return formatted_string
+    
+    except ValueError as e:
+        # Handle cases where the input string doesn't match the expected format
+        return f"Error: Failed to parse datetime string. Details: {e}"
+               
 if __name__ == '__main__':
     password = "hello@example.com"
     uuid_str = get_system_uuid()

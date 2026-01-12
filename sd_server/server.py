@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+import json
 from datetime import datetime, timedelta
 from typing import Dict, List
 
@@ -11,16 +12,20 @@ from flask import (
     Flask,
     current_app,
     send_from_directory,
+    jsonify,
+    request
 )
 
 import sd_datastore
 from sd_datastore import Datastore
 from . import rest
-from .api import ServerAPI
+from .api import ServerAPI, ScreenShotQueue
 from .custom_static import get_custom_static_blueprint
 from .log import FlaskLogHandler
+from . import screen_shot
 
 logger = logging.getLogger(__name__)
+
 
 app_folder = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(app_folder, "static")
@@ -82,8 +87,11 @@ class AWFlask(Flask):
         db = Datastore(storage_method, testing=testing)
         self.api = ServerAPI(db=db, testing=testing)
         self.api.ralvie_server_queue.start()
+        # self.screen_shot_queue = ScreenShotQueue(self.api)
+        self.api.screen_shot_queue.start()
         self.register_blueprint(root)
         self.register_blueprint(rest.blueprint)
+        self.register_blueprint(screen_shot.blueprint)
         # self.register_blueprint(get_custom_static_blueprint(custom_static))
 
 
