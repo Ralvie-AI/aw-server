@@ -1672,7 +1672,7 @@ class ScreenShotQueue(threading.Thread):
                     logger.info("Connected to internet. Attempting to sync screenshot.")
                     response_code = None
                     try:
-
+                        logger.info(f"self.server.db.get_screenshot_record() length => {len(self.server.db.get_screenshot_record())}")
                         for record in self.server.db.get_screenshot_record():
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
