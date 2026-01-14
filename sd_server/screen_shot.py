@@ -99,13 +99,21 @@ def get_event_time_range():
     logger.info(f"events_range => {type(events_range)}")
     logger.info(f"events_range => {events_range}")
 
+    events = []
     for event in events_range:
+        result = {}
+        result['id'] = event.id
+        result['timestamp'] = event.timestamp
+        result['duration'] = float(event.duration) 
+        events.append(result)
+
         logger.info(f"event = {event}")
         logger.info(f"event type = {type(event)}")
         logger.info(f"event time => {event.timestamp}, type => {type({event.timestamp})}")
+    logger.info(f"events => {events}")
     # event_data = model_to_dict(latest_event)
 
     return jsonify({
-        'result': "test",
+        'result': json.dumps(events),
         'message': 'JSON processed successfully',        
-    }), 201
+    }), 200
