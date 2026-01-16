@@ -32,6 +32,7 @@ def screenshot():
 
     get_afk_data = json.loads(event_data.get('datastr'))
     file_location = json_data.get('file_location') 
+    event_id = json_data.get('event_id') 
     created_at = json_data.get('created_at') 
     logger.info(f"file_location => {file_location}")
     logger.info(f"created_at => {created_at}")
@@ -70,8 +71,14 @@ def screenshot():
     # if os.path.exists(json_file):
     #     os.remove(file_location)
         
+    # data = {
+    #         "event": str(event_data.get('eventId')),
+    #         "file_path": json_file,
+    #         'created_at': datetime.fromisoformat(created_at)
+    #         }
+    
     data = {
-            "event": str(event_data.get('eventId')),
+            "event_id": event_id,
             "file_path": json_file,
             'created_at': datetime.fromisoformat(created_at)
             }
