@@ -94,8 +94,8 @@ def screenshot():
         logger.info(f"Error: {e}")
     
     logger.info(f"json file exists => {os.path.exists(json_file)}")
-    if os.path.exists(json_file):
-        os.remove(file_location)
+    # if os.path.exists(json_file):
+    #     os.remove(file_location)
         
     data = {
             "event": str(event_data.get('eventId')),
@@ -110,3 +110,35 @@ def screenshot():
         'message': 'JSON processed successfully',
         'received_data': json_data
     }), 201
+
+@blueprint.route('/get_event_time_range', methods=['POST'])
+def get_event_time_range():
+    logger.info("get_event_time_range")
+    json_data = request.get_json()  # Expects Content-Type: application/json
+    if not json_data:
+        return jsonify({'error': 'No JSON payload provided'}), 400
+    
+    start_time = json_data.get('start_time') 
+    end_time = json_data.get('end_time') 
+    events_range = current_app.api.db.get_events_timestamp_range(start_time, end_time)   
+    logger.info(f"events_range => {type(events_range)}")
+    logger.info(f"events_range => {events_range}")
+
+    events = []
+    for event in events_range:
+        result = {}
+        result['id'] = event.id
+        result['timestamp'] = event.timestamp
+        result['duration'] = float(event.duration) 
+        events.append(result)
+
+        logger.info(f"event = {event}")
+        logger.info(f"event type = {type(event)}")
+        logger.info(f"event time => {event.timestamp}, type => {type({event.timestamp})}")
+    logger.info(f"events => {events}")
+    # event_data = model_to_dict(latest_event)
+
+    return jsonify({
+        'result': json.dumps(events),
+        'message': 'JSON processed successfully',        
+    }), 200
