@@ -35,23 +35,15 @@ def screenshot():
     if not json_data:
         return jsonify({'error': 'No JSON payload provided'}), 400
     
-    current_app.api.db.get_screenshot_record()
-
-    latest_event = current_app.api.db.get_lastest_event()
-    try:
-        latest_screenshot = current_app.api.db.get_latest_screenshot()
-    except Exception as e:
-        latest_screenshot = None 
-   
+    event_id = json_data.get('event_id') 
+    latest_event = current_app.api.db.get_event_by_id(event_id)   
     event_data = model_to_dict(latest_event)
-    logger.info(f"latest_event => {latest_event}")
 
     get_afk_data = json.loads(event_data.get('datastr'))
     file_location = json_data.get('file_location') 
-    created_at = json_data.get('created_at')
+    created_at = json_data.get('created_at') 
     logger.info(f"file_location => {file_location}")
     logger.info(f"created_at => {created_at}")
-
 
     # if is_idle_screenshot was false, no need to take screen shot for idle time.
     
@@ -61,15 +53,6 @@ def screenshot():
                         'result': "Success",
                         'message': 'Screen capture is disabled when the system is idle.',     
                     }), 200 
-
-    # if latest_screenshot:        
-
-    #     if str(latest_screenshot.event.eventId) == str(event_data.get('eventId')):
-
-    #         return jsonify({
-    #                     'result': "Conflict",
-    #                     'message': 'Already exists',     
-    #                 }), 409
     
     creds = credentials()
     image_format = "png"
@@ -94,11 +77,11 @@ def screenshot():
         logger.info(f"Error: {e}")
     
     logger.info(f"json file exists => {os.path.exists(json_file)}")
-    # if os.path.exists(json_file):
-    #     os.remove(file_location)
-        
+    if os.path.exists(json_file):
+        os.remove(file_location)  
+  
     data = {
-            "event": str(event_data.get('eventId')),
+            "event_id": event_id,
             "file_path": json_file,
             'created_at': datetime.fromisoformat(created_at)
             }
@@ -113,7 +96,6 @@ def screenshot():
 
 @blueprint.route('/get_event_time_range', methods=['POST'])
 def get_event_time_range():
-    logger.info("get_event_time_range")
     json_data = request.get_json()  # Expects Content-Type: application/json
     if not json_data:
         return jsonify({'error': 'No JSON payload provided'}), 400
@@ -121,8 +103,6 @@ def get_event_time_range():
     start_time = json_data.get('start_time') 
     end_time = json_data.get('end_time') 
     events_range = current_app.api.db.get_events_timestamp_range(start_time, end_time)   
-    logger.info(f"events_range => {type(events_range)}")
-    logger.info(f"events_range => {events_range}")
 
     events = []
     for event in events_range:
@@ -132,13 +112,21 @@ def get_event_time_range():
         result['duration'] = float(event.duration) 
         events.append(result)
 
-        logger.info(f"event = {event}")
-        logger.info(f"event type = {type(event)}")
-        logger.info(f"event time => {event.timestamp}, type => {type({event.timestamp})}")
     logger.info(f"events => {events}")
-    # event_data = model_to_dict(latest_event)
+    if events:
+        return jsonify({
+            'result': json.dumps(events),
+            'event_id': "",
+            'message': 'JSON processed successfully',        
+        }), 200
+    else:
+        latest_event = current_app.api.db.get_lastest_event()   
+        event_data = model_to_dict(latest_event)
 
-    return jsonify({
-        'result': json.dumps(events),
-        'message': 'JSON processed successfully',        
-    }), 200
+        return jsonify({
+            'result': json.dumps(events),
+            'event_id': event_data.get('id'),
+            'message': 'JSON processed successfully',        
+        }), 200
+
+    

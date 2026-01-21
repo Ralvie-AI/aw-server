@@ -18,7 +18,7 @@ from flask import (
 from flask_cors import CORS
 
 from . import rest, screen_shot
-from .api import ServerAPI, ScreenShotQueue
+from .api import ServerAPI
 from .custom_static import get_custom_static_blueprint
 from .log import FlaskLogHandler
 from playhouse.shortcuts import model_to_dict
@@ -75,13 +75,10 @@ class AWFlask(Flask):
         db = Datastore(storage_method, testing=testing)
         self.api = ServerAPI(db=db, testing=testing)
         self.api.ralvie_server_queue.start()
-        # self.screen_shot_queue = ScreenShotQueue(self.api)
-        # self.api.screen_shot_queue.start()
+        self.api.screen_shot_queue.start()
         self.register_blueprint(root)
         self.register_blueprint(rest.blueprint)
         self.register_blueprint(screen_shot.blueprint)
-        # self.register_blueprint(get_custom_static_blueprint(custom_static))
-
 
 class CustomJSONProvider(flask.json.provider.DefaultJSONProvider):
     # encoding/decoding of datetime as iso8601 strings
