@@ -68,8 +68,10 @@ def screenshot():
         logger.info(f"Error: {e}")
 
     logger.info(f"json file exists => {os.path.exists(json_file)}")
-    if os.path.exists(json_file):
-        os.remove(file_location)   
+    logger.info(f"file_location exists => {os.path.exists(file_location)}")
+    # uncomment these lines to delete the image file
+    # if os.path.exists(json_file):
+    #     os.remove(file_location)   
     
     data = {
             "event_id": event_id,

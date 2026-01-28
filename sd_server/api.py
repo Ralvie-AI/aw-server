@@ -35,6 +35,7 @@ from sd_transform import heartbeat_merge
 from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, convert_datetime_string)
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
                              PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_SYNC_TIME)
+from sd_server.ocr_active import ActiveWindowOCRText
 
 
 HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
@@ -1551,6 +1552,7 @@ class ScreenShotQueue(threading.Thread):
         self.userId = ""
         self.connected = False
         self._stop_event = threading.Event()
+        self.orc  = ActiveWindowOCRText(warmup=True)
 
     def _try_connect(self) -> bool:
         try:
@@ -1674,6 +1676,19 @@ class ScreenShotQueue(threading.Thread):
                     try:
                         logger.info(f"self.server.db.get_screenshot_record() length => {len(self.server.db.get_screenshot_record())}")
                         for record in self.server.db.get_screenshot_record():
+                            
+                            logger.info(f"record.ocr_text => {record.ocr_text}")
+                            if not record.ocr_text:
+                                logger.info(f"record.file_path => {record.file_path}")
+                                tmp_file_path, ext = os.path.splitext(record.file_path)
+                                screenshot_file = f"{tmp_file_path}.png"
+                                logger.info(f"screenshot_file => {screenshot_file}")
+                                ocr_result = self.orc.run_ocr(img_path=screenshot_file)
+                                logger.info(f'result => {ocr_result}')
+                                logger.info(f'result type=> {type(ocr_result)}')
+                                self.server.db.update_ocr_text(record.id, ocr_result)
+                                break
+                            
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
                                 response_code = REJECTED_SYNC_STATUS
