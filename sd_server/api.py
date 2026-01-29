@@ -625,7 +625,7 @@ class ServerAPI:
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
-                        "ocrText": record.ocr_text
+                        "ocrText": json.loads(record.ocr_text)
                         }
 
             logger.info(f"payload info => {payload}")
