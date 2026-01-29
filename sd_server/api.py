@@ -1204,6 +1204,15 @@ class ServerAPI:
                     # self.last_event[bucket_id] = merged
                     # self.db[bucket_id].replace_last(merged)
                     # return merged
+                    def get_minutes(duration):    
+                        total_seconds = duration.total_seconds()
+                        # Convert seconds to minutes
+                        minutes = total_seconds / 60
+                        return round(minutes)
+                    
+                    if merged.get('data').get('status') == 'afk' and get_minutes(merged.get('duration')) >= 30:        
+                        merged['duration'] = timedelta(minutes=30)
+
                     result = self.db[bucket_id].replace_last(merged)
                     # logger.info(f"result type => {result}")
                     if result != 1:
@@ -1627,7 +1636,18 @@ class ScreenShotQueue(threading.Thread):
         if not self._try_connect():
             logger.info("Initial connection attempt failed. Will retry.")
 
+        last_tick = time.time()
         while not self.should_stop():
+            now = time.time()
+            gap = now - last_tick
+
+            if gap > 60 * 10:  # 10 minutes
+                logger.info(
+                    f"Long inactivity detected (gap={int(gap)}s), forcing reconnect"
+                )
+                self.connected = False
+
+            last_tick = now
             # Check internet connection and attempt to sync
             print("is_internet_connected()", is_internet_connected())
             if is_internet_connected():
