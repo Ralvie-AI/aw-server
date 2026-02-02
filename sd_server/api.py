@@ -275,7 +275,8 @@ class ServerAPI:
 
         if "accept-language" in data:
             headers.update({"accept-language": data.get('accept-language')})
-        
+        logger.info(f"data => {data}")
+        logger.info(f"json dumps data => {json.dumps(data)}")
         if 'timeout' in data:
             timeout = data.pop("timeout")
             return req.post(
@@ -614,7 +615,20 @@ class ServerAPI:
             else:
                 afk_dict["app"] = record.event.app
                 afk_dict["title"] = record.event.title
+            # logger.info(f"record.ocr_text => {record.ocr_text}")
+            # logger.info(f"record.ocr_text => {type(record.ocr_text)}")
+            # json_load_data = json.dumps(record.ocr_text)
+            # logger.info(f"record.ocr_text ocr => {json_load_data}")
+            # logger.info(f"record.ocr_text ocr => {type(json_load_data)}")
 
+            ocr_data = []
+            ocr_text_json = json.loads(record.ocr_text)
+            for data in ocr_text_json.get('data'):
+                ocr_data.append(data)
+
+            logger.info(f"record.ocr_text ocr => {type(ocr_data)}")
+            logger.info(f"orc_data => {ocr_data}")
+            
             payload = {"userId": userId, 
                        "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -625,7 +639,7 @@ class ServerAPI:
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
-                        "ocrText": json.loads(record.ocr_text)
+                        "ocrText": ocr_data
                         }
 
             logger.info(f"payload info => {payload}")
@@ -635,6 +649,7 @@ class ServerAPI:
                 try:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
+                    # response = self._post(endpoint, payload)
                     logging.info(f"result testing => {response.json()}")
                     json_data = response.json()
                     logger.info(f"json_data => {json_data}")
