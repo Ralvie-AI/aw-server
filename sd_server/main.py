@@ -10,6 +10,7 @@ from sd_datastore import get_storage_methods
 from . import __version__
 from .config import config
 from .server import _start
+from .const import GITHUB_COMMIT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,8 @@ def main():
         logger.info(f"Using custom_static: {settings.custom_static}")
 
     
+    logger.info(f"GITHUB_COMMIT_ID = > {GITHUB_COMMIT_ID}")
+
     # Check before initializing the watcher or logs
     current_pid = os.getpid()
     logger.info(f"current_pid = > {current_pid}")
@@ -76,6 +79,7 @@ def main():
     else:
         current_name = os.path.basename(__file__)
 
+    GITHUB_COMMIT_ID
     logger.info(f"current_name = > {current_name}")
     if is_already_running():
         # Using stdout because logs aren't initialized yet

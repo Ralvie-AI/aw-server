@@ -16,6 +16,8 @@ SCREEN_SHOT_SYNC_TIME = 60 # 1  minutes
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
 
+GITHUB_COMMIT_ID="main/windows_7f18343"
+
 PUBLIC_KEY = os.path.join(os.environ['LOCALAPPDATA'], 'Sundial', 'Sundial', 'sd-server', '{email}-{company_id}-public.pem')
 
 
