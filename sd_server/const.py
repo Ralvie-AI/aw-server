@@ -5,7 +5,7 @@ DEVELOPMENT_MODE = 0        # no need to change this
 
 DEVELOPMENT_MODE_MACOS = 1
 
-STAGING = 0
+STAGING = 1
 
 PROTOCOL = "https"
 
@@ -14,7 +14,7 @@ SCREEN_SHOT_TIME = 60 # 1  minutes
 
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
-TMP_VERSION = "1.2.0"
+TMP_VERSION = "1.3.0"
 if STAGING == 1:
     HOST = HOST_DEV
     VERSION_DISPLAY = f"{TMP_VERSION}_beta"
@@ -28,9 +28,9 @@ CACHE_KEY = "Sundial"
 SUCCESSFUL_SYNC_STATUS = "RCI0000" # store the events successful in server side
 REJECTED_SYNC_STATUS = "RCE0219" # server rejected these events
 
-LOCAL_SERVER = 1
-if LOCAL_SERVER == 1:
-    PROTOCOL = "http"
-    # HOST = "localhost:3323"
-    HOST = "182.66.219.114:9010"
+# LOCAL_SERVER = 1
+# if LOCAL_SERVER == 1:
+#     PROTOCOL = "http"
+#     # HOST = "localhost:3323"
+#     HOST = "182.66.219.114:9010"
 
