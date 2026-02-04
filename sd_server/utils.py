@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import platform
 import re
@@ -349,6 +350,32 @@ def convert_datetime_string_old(dt_string: str) -> str:
         # Handle cases where the input string doesn't match the expected format
         return f"Error: Failed to parse datetime string. Details: {e}"
                
+def get_running_path():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
+    
+def start_exe(exec_cmd, process_name=None):
+    logger.info(f"Starting module {exec_cmd}")
+    if not isinstance(exec_cmd, list):
+        exec_cmd = [exec_cmd]        
+    logger.debug("Running: {}".format(exec_cmd))
+
+    # Don't display a console window on Windows
+    # See: https://github.com/ActivityWatch/activitywatch/issues/212
+    startupinfo = None
+    if sys.platform == "win32" or sys.platform == "cygwin":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+   
+
+    # There is a very good reason stdout and stderr is not PIPE here
+    # See: https://github.com/ActivityWatch/aw-server/issues/27
+    _process = subprocess.Popen(
+        exec_cmd, universal_newlines=True, startupinfo=startupinfo
+    )
+
 if __name__ == '__main__':
     password = "hello@example.com"
     uuid_str = get_system_uuid()

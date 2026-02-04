@@ -32,10 +32,10 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, convert_datetime_string)
+from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, convert_datetime_string, 
+                             start_exe, get_running_path)
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
                              PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_SYNC_TIME)
-from sd_server.ocr_active import ActiveWindowOCRText
 
 
 HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
@@ -1567,8 +1567,7 @@ class ScreenShotQueue(threading.Thread):
         self.server = server
         self.userId = ""
         self.connected = False
-        self._stop_event = threading.Event()
-        self.orc  = ActiveWindowOCRText(warmup=True)
+        self._stop_event = threading.Event()          
 
     def _try_connect(self) -> bool:
         try:
@@ -1699,10 +1698,21 @@ class ScreenShotQueue(threading.Thread):
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}.png"
                                 logger.info(f"screenshot_file => {screenshot_file}")
-                                ocr_result = self.orc.run_ocr(img_path=screenshot_file)
-                                logger.info(f'result => {ocr_result}')
-                                logger.info(f'result type=> {type(ocr_result)}')
-                                self.server.db.update_ocr_text(record.id, ocr_result)
+                                server_url = "http://localhost:7600/screenshot/update_ocr_text"
+                                file_location = get_running_path()
+                                sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity.exe")   
+                                command_list = [             
+                                        sd_ocr_activity_exe,                          
+                                        "--server_url", server_url,
+                                        "--image_path", screenshot_file,
+                                        "--screenshot_id", str(record.id),                                        
+                                    ]
+                                logger.info(f"command_list => {command_list}")
+                                start_exe(command_list)
+                                # ocr_result = self.orc.run_ocr(img_path=screenshot_file)
+                                # logger.info(f'result => {ocr_result}')
+                                # logger.info(f'result type=> {type(ocr_result)}')
+                                # self.server.db.update_ocr_text(record.id, ocr_result)
                                 break
                             
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
