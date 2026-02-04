@@ -129,4 +129,19 @@ def get_event_time_range():
             'event_id': event_data.get('id'),
             'message': 'JSON processed successfully',        
         }), 200
+
+
+@blueprint.route('/update_ocr_text', methods=['POST'])
+def update_ocr_text():
     
+    json_data = request.get_json()  # Expects Content-Type: application/json
+    if not json_data:
+        return jsonify({'error': 'No JSON payload provided'}), 400
+    
+    screenshot_id = json_data.get('screenshot_id') 
+    ocr_result = json_data.get('ocr_text') 
+    current_app.api.db.update_ocr_text(screenshot_id, ocr_result)
+    
+    return jsonify({        
+        'message': 'JSON processed successfully',        
+    }), 200
