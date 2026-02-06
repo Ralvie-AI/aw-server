@@ -1726,10 +1726,15 @@ class ScreenShotQueue(threading.Thread):
                                 if sync_result == "RCI0000":
                                     logger.info(f"record.sync_status after => {record.sync_status}")
                                     if record.sync_status == 1:
-                                        logger.info(f"dir => {dir(record)}")
+                                        # logger.info(f"dir => {dir(record)}")
                                         img_file_path = record.file_path
                                         logger.info(f"img_file_path => {img_file_path}")
                                         os.remove(img_file_path)
+
+                                        # Delete the screenshot file
+                                        tmp_file_path, ext = os.path.splitext(img_file_path)
+                                        screenshot_file = f"{tmp_file_path}.png"
+                                        os.remove(screenshot_file)
                                         record.delete_instance()
                             else:
                                 if record.object_key:
@@ -1738,11 +1743,14 @@ class ScreenShotQueue(threading.Thread):
                                     if sync_result == "RCI0000":
                                         logger.info(f"record.sync_status after => {record.sync_status}")
                                         logger.info(f"record.object_key after => {record.object_key}")
-                                        if record.sync_status == 1:
+                                        if record.sync_status == 1 and record.ocr_text:
                                             logger.info(f"dir retry => {dir(record)}")
                                             img_file_path = record.file_path
                                             logger.info(f"img_file_path retry => {img_file_path}")
                                             os.remove(img_file_path)
+                                            tmp_file_path, ext = os.path.splitext(img_file_path)
+                                            screenshot_file = f"{tmp_file_path}.png"
+                                            os.remove(screenshot_file)
                                             record.delete_instance()
 
                         if response_code == REJECTED_SYNC_STATUS:
