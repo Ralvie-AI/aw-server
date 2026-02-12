@@ -1,0 +1,224 @@
+
+import numpy as np
+import cv2
+import json
+import platform
+import importlib.util
+import gc
+import os
+import time
+
+
+
+class ActiveWindowOCRText:
+    def __init__(self, warmup=False) -> None:
+        super().__init__()
+        self._reader_cache = None
+
+        if warmup:
+            self._warmup()
+
+    def _warmup(self):
+        try:       
+            #logging.getlogger("RapidOCR").setLevel(logging.ERROR)
+
+            reader = self.get_cached_reader()
+            warmup_img = np.ones((256, 256, 3), dtype=np.uint8) * 255
+            cv2.putText(warmup_img, "Warmup", (10, 150),cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 0, 0), 3)
+            _ = reader(warmup_img)
+            del warmup_img
+            #logger.info("[OCRText] Warmup completed")
+        except Exception:
+            #logger.exception("[OCRText] Warmup failed")
+            raise
+            
+
+    def use_mps(self) -> bool:
+        """Detect apple silicon"""
+        try:
+            if platform.machine() == "arm64":
+                #logger.info(f"[OCRText] Detected Apple Silicon")
+                return True
+            else:
+                return False
+        except Exception:
+            return False
+        
+    def has_intel_cpu(self) -> bool:
+        """Rough check if CPU is Intel."""
+        try:
+            cpu_info = (platform.processor() or platform.machine() or "").lower()
+            if "intel" in cpu_info:
+                #logger.info(f"[OCRText] Detected Intel CPU: {cpu_info}")
+                return True
+            else:
+                return False
+        except Exception:
+            return False
+
+    def get_cached_reader(self):
+        """
+        Return a cached RapidOCR reader, chosen based on hardware.
+        Apple Silicon -> Torch + MPS
+        Intel -> OpenVINO
+        Fallback -> ONNX Runtime 
+        """
+        if self._reader_cache is not None:
+            return self._reader_cache
+
+        #logger.info("[OCRText] Initializing RapidOCR reader")
+
+        try:
+            from rapidocr import RapidOCR, EngineType
+        except Exception as e:
+            #logger.exception(f"[OCRText] Failed to import RapidOCR: {e}")
+            raise RuntimeError(f"No suitable RapidOCR backend found. {e}")
+        
+        # # --- Apple Silicon (Torch) ---
+        if self.use_mps():
+            #logger.info("[OCRText] Apple Silicon detected, checking Torch + MPS support")
+            if importlib.util.find_spec("torch") is None:
+                print('Torch not installed')
+                #logger.warning("[OCRText] Torch not installed, cannot use MPS backend")
+            else:
+                try:
+                    import torch
+                    if torch.backends.mps.is_built() and torch.backends.mps.is_available():
+                        #logger.info("[OCRText] Torch MPS backend is available")
+                        self._reader_cache = RapidOCR(params={
+                            "Det.engine_type": EngineType.TORCH,
+                            "Rec.engine_type": EngineType.TORCH,
+                            "Cls.engine_type": EngineType.TORCH,
+                            "Global.use_cls": False,
+                            "EngineConfig.torch.use_mps": True,
+                            "Cls.cls_batch_num": 16,
+                            "Rec.rec_batch_num": 16,
+                        })
+                        #logger.info("[OCRText] Loaded OCR Engine: Torch (MPS / Apple Silicon)")
+                        return self._reader_cache
+                    else:
+                        print('Torch MPS backend is NOT available')
+                        # logger.warning(
+                        #     "[OCRText] Torch installed but MPS backend is NOT available "
+                        #     "(likely Intel Mac or unsupported macOS version)"
+                        # )
+                except Exception as e:
+                    print(e)
+                    #logger.warning(f"[OCRText] Apple Silicon detected, but Torch failed to load: {e}")
+
+        # --- Intel-based MacBook from 2006 to 2021 (OpenVINO) ---
+        if self.has_intel_cpu():
+            if importlib.util.find_spec("openvino") is not None:
+                try:
+                    self._reader_cache = RapidOCR(params={
+                        "Det.engine_type": EngineType.OPENVINO,
+                        "Rec.engine_type": EngineType.OPENVINO,
+                        "Global.use_cls": False,
+                        "Det.device_name": "AUTO",
+                        "Cls.device_name": "AUTO",
+                        "Rec.device_name": "AUTO"
+                    })
+                    #logger.info("[OCRText] Loaded Engine: OpenVINO (Intel CPU)")
+                    return self._reader_cache
+                except Exception as e:
+                    print(e)
+                    #logger.warning(f"[OCRText] Intel CPU detected, but OpenVINO failed to load: {e}")
+
+        # --- Others (ONNX Runtime) ---
+        try:
+            self._reader_cache = RapidOCR(params={"Global.use_cls": False,})
+            #logger.info("[OCRText] Loaded Engine: ONNX Runtime")
+            return self._reader_cache
+        except Exception as e:
+            #logger.exception(f"[OCRText] ONNX Runtime backend failed to load: {e}")
+            raise RuntimeError("All RapidOCR backends failed to initialize.")
+
+    
+        
+    def run_ocr(self, img_path: str, min_conf=0.8, save_box_info=False, save_conf_info=False):
+        # Main OCR execution function
+
+        t_init = time.perf_counter()
+
+        img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Failed to load image")
+        #logger.info(f"[TIMING] Reading the image: {time.perf_counter() - t_init:.3f}s")
+        
+        # ===== Crop top 30% =====
+        h, w = img.shape[:2]
+        crop_height = int(h * 0.3)
+        img = img[0:crop_height, 0:w]
+
+        _t_ocr_mode = time.perf_counter()
+
+        reader = self.get_cached_reader() # get RapidOCR reader
+        output = None
+        try:
+            output = reader(img)
+        except Exception:
+            #logger.exception("[OCRText] reader(img) failed during fullscreen_ocr")
+            raise
+
+        if not output:
+            #logger.info("[OCRText] No text detected")
+            return {"results": {}, "all_detections": []}
+
+        #logger.info(f"[TIMING] ocr_execution: {time.perf_counter() - _t_ocr_mode:.3f}s")
+
+        # Save as JSON file
+        _t_json = time.perf_counter()
+        ts = time.strftime("%Y-%m-%d_%H-%M-%S")
+        json_output = {
+            "timestamp": ts,
+            "data": []
+        }
+
+        for box, text, conf in zip(output.boxes, output.txts, output.scores):
+            if conf < min_conf:
+                continue
+            json_data = {"text": text}
+            if save_conf_info:
+                json_data["confidence"] = float(conf)
+            if save_box_info:
+                json_data["box"] = [[float(p[0]), float(p[1])] for p in box]
+            json_output['data'].append(json_data)
+
+        try:
+            from pathlib import Path
+            data_dir = (
+                Path.home()
+                / "Library"
+                / "Application Support"
+                / "OCRTest"
+                / "ocr_data"
+            )
+
+            data_dir.mkdir(parents=True, exist_ok=True)
+
+            output_json = os.path.join(
+                data_dir,
+                f"window_ocr_results_{time.strftime('%Y%m%d_%H%M%S')}_{int((time.time()%1)*1000):03d}" + ".json",
+            )
+            with open(output_json, "w", encoding="utf-8") as f:
+                json.dump(json_output, f, ensure_ascii=False)
+            #logger.info(f"[OCRText] JSON results saved: {output_json}")
+            #logger.info(f"[TIMING] save_ocr_json: {time.perf_counter() - _t_json:.3f}s")
+        except Exception:
+            #logger.exception(f"[OCRText] Failed to write JSON results: {output_json}")
+            raise
+
+        t_ocr_total = time.perf_counter() - t_init
+        #logger.info(f"[OCRText] run_ocr time: {t_ocr_total:.2f}s")
+
+        return json_output
+
+if __name__ == "__main__":
+    ocr = ActiveWindowOCRText(warmup=True)
+    ocr.run_ocr(
+    img_path="/Users/armatura/Library/Application Support/OCRTest/ss_test.png"
+)
+
+
+
+    
