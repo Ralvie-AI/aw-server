@@ -36,7 +36,9 @@ from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string
 from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
-
+from sd_server.ocr_active import ActiveWindowOCRText
+from sd_main.sd_desktop.util import get_running_path, get_running_path_ocr
+from sd_main.sd_desktop.monitor import start_sd_ocr_activity
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -587,6 +589,25 @@ class ServerAPI:
                 afk_dict["app"] = record.event.app
                 afk_dict["title"] = record.event.title
 
+            # logger.info(f"record.ocr_text => {record.ocr_text}")
+            # logger.info(f"record.ocr_text => {type(record.ocr_text)}")
+            # json_load_data = json.dumps(record.ocr_text)
+            # logger.info(f"record.ocr_text ocr => {json_load_data}")
+            # logger.info(f"record.ocr_text ocr => {type(json_load_data)}")
+
+            ocr_data = []
+            if record.ocr_text:
+                try:
+                    ocr_text_json = json.loads(record.ocr_text)
+                    ocr_data = ocr_text_json.get("data", [])
+                except Exception as e:
+                    logger.error(f"OCR JSON parse failed: {e}")
+                    ocr_data = []
+
+            logger.info(f"record.ocr_text type => {type(record.ocr_text)}")
+            logger.info(f"ocr_data => {ocr_data}")
+
+
             payload = {"userId": userId, 
                         "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -597,6 +618,7 @@ class ServerAPI:
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
+                        "ocrText": ocr_data
                         }
         
             logger.info(f"payload info => {payload}")
@@ -1529,6 +1551,8 @@ class ScreenShotQueue(threading.Thread):
         self.userId = ""
         self.connected = False
         self._stop_event = threading.Event()
+        self.ocr  = ActiveWindowOCRText(warmup=True)
+
 
     def _try_connect(self) -> bool:
         try:
@@ -1662,6 +1686,24 @@ class ScreenShotQueue(threading.Thread):
                     response_code = None
                     try:
                         for record in self.server.db.get_screenshot_record():
+                            
+                            logger.info(f"record.ocr_text => {record.ocr_text}")
+                            if not record.ocr_text:
+                                logger.info(f"record.file_path => {record.file_path}")
+                                tmp_file_path, ext = os.path.splitext(record.file_path)
+                                screenshot_file = f"{tmp_file_path}.png"
+                                logger.info(f"screenshot_file => {screenshot_file}")
+                                ocr_result = self.ocr.run_ocr(img_path=screenshot_file)
+                                logger.info(f'result => {ocr_result}')
+                                logger.info(f'result type=> {type(ocr_result)}')
+
+                                if not isinstance(ocr_result, str):
+                                    ocr_result = json.dumps(ocr_result)
+
+                                self.server.db.update_ocr_text(record.id, ocr_result)
+
+                                break
+
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
                                 response_code = REJECTED_SYNC_STATUS
