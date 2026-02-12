@@ -146,8 +146,14 @@ def stop_process_by_exe(exe_name):
     logger.info(f"killing start cmd_name {exe_name}")
     subprocess.run(f"taskkill /F /IM {exe_name}", shell=True)
 
-
 def convert_datetime_string(dt_string: str) -> str:
+    from dateutil import parser
+    from zoneinfo import ZoneInfo
+
+    dt = parser.parse(dt_string)
+    return dt.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def convert_datetime_string_old(dt_string: str) -> str:
     """
     Converts a datetime string from the format 'YYYY-MM-DD HH:MM:SS.ffffff+00:00' 
     to the format 'YYYY-MM-DDT HH:MM:SSZ' (ISO 8601 without fractional seconds, 
@@ -186,3 +192,5 @@ if __name__ == '__main__':
     print("uuid_str", uuid_str)
     print("hello world")
     print(get_uuid_address(password, uuid_str))
+    encrypted_token = get_uuid_address()
+    print("encrypted_token ", encrypted_token)
