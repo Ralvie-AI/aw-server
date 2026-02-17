@@ -7,6 +7,9 @@ import importlib.util
 import gc
 import os
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -95,6 +98,7 @@ class ActiveWindowOCRText:
                             "Rec.rec_batch_num": 16,
                         })
                         #logger.info("[OCRText] Loaded OCR Engine: Torch (MPS / Apple Silicon)")
+                        logger.info("[OCR] Backend: TORCH (MPS - Apple Silicon GPU)")
                         return self._reader_cache
                     else:
                         print('Torch MPS backend is NOT available')
@@ -119,6 +123,7 @@ class ActiveWindowOCRText:
                         "Rec.device_name": "AUTO"
                     })
                     #logger.info("[OCRText] Loaded Engine: OpenVINO (Intel CPU)")
+                    logger.info("[OCR] Backend: OPENVINO (Intel CPU)")
                     return self._reader_cache
                 except Exception as e:
                     print(e)
@@ -128,6 +133,7 @@ class ActiveWindowOCRText:
         try:
             self._reader_cache = RapidOCR(params={"Global.use_cls": False,})
             #logger.info("[OCRText] Loaded Engine: ONNX Runtime")
+            logger.info("[OCR] Backend: ONNX Runtime (CPU)")
             return self._reader_cache
         except Exception as e:
             #logger.exception(f"[OCRText] ONNX Runtime backend failed to load: {e}")
@@ -144,7 +150,7 @@ class ActiveWindowOCRText:
         if img is None:
             raise ValueError("Failed to load image")
         #logger.info(f"[TIMING] Reading the image: {time.perf_counter() - t_init:.3f}s")
-        
+
         # ===== Crop top 30% =====
         h, w = img.shape[:2]
         crop_height = int(h * 0.3)
