@@ -37,8 +37,7 @@ from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string
 from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 from sd_server.ocr_active import ActiveWindowOCRText
-from sd_main.sd_desktop.util import get_running_path, get_running_path_ocr
-from sd_main.sd_desktop.monitor import start_sd_ocr_activity
+
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -269,6 +268,7 @@ class ServerAPI:
         if "accept-language" in data:
             headers.update({"accept-language": data.get('accept-language')})
         
+        print(headers)
         logger.info(f"data => {data}")
         logger.info(f"json dumps data => {json.dumps(data)}")
         if 'timeout' in data:
@@ -1719,6 +1719,11 @@ class ScreenShotQueue(threading.Thread):
                                         img_file_path = record.file_path
                                         logger.info(f"img_file_path => {img_file_path}")
                                         os.remove(img_file_path)
+
+                                         # Delete the screenshot file
+                                        tmp_file_path, ext = os.path.splitext(img_file_path)
+                                        screenshot_file = f"{tmp_file_path}.png"
+                                        os.remove(screenshot_file)
                                         record.delete_instance()
                             else:
                                 if record.object_key:
@@ -1732,7 +1737,10 @@ class ScreenShotQueue(threading.Thread):
                                             img_file_path = record.file_path
                                             logger.info(f"img_file_path => {img_file_path}")
                                             os.remove(img_file_path)
-                                            record.delete_instance()      
+                                            tmp_file_path, ext = os.path.splitext(img_file_path)
+                                            screenshot_file = f"{tmp_file_path}.png"
+                                            os.remove(screenshot_file)
+                                            record.delete_instance()     
 
                         if response_code == REJECTED_SYNC_STATUS:
                             macos_pid = get_running_process_id("sd-watcher-window-macos")
