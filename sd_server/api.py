@@ -409,7 +409,7 @@ class ServerAPI:
         """
         
         
-        endpoint = f"/web/user/authorize"
+        endpoint = f"/api/v1/users/authorize"
         return self._post(endpoint , user)
 
     def refresh_token(self, payload:Dict[str, Any]):
