@@ -38,6 +38,11 @@ from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_US
                              PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_SYNC_TIME)
 
 
+from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
+from sd_qt.sd_desktop.util import (credentials)
+from sd_server.const import PUBLIC_KEY
+
+
 HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
 
 MAX_RETRIES = 3
@@ -1691,6 +1696,41 @@ class ScreenShotQueue(threading.Thread):
                     try:
                         logger.info(f"self.server.db.get_screenshot_record() length => {len(self.server.db.get_screenshot_record())}")
                         for record in self.server.db.get_screenshot_record():
+
+                            # check if record.file_path file type is png
+                            # it means there was no public key file found for encrypting the json file
+                            tmp_file, ext = os.path.splitext(record.file_path)
+                            if ext != ".json":
+                                
+                                creds = credentials()
+                                image_format = "png"
+                                user_id = creds.get('userId')
+                                company_id  = creds.get('companyId')
+                                UUID = get_uuid_address()
+
+                                associated_data = f"image_format={image_format},user_id={user_id},company_id={company_id},UUID={UUID}".encode('utf-8')
+                                public_key_file = PUBLIC_KEY.format(email=creds.get('email'), company_id=company_id)
+
+                                if not os.path.exists(public_key_file):
+                                    logger.info(f"record.file_path => {record.file_path}")
+                                    logger.info(f"No public key found {public_key_file}")
+                                    break 
+
+                                encrypted_data_json = encrypt_image_to_json_gcm(record.file_path, associated_data, public_key_path=public_key_file)
+                                file_path_without_ext, ext = os.path.splitext(record.file_path)
+                                json_file = f"{file_path_without_ext}.json"    
+
+                                try:
+                                    with open(json_file, 'w') as f:
+                                        f.write(encrypted_data_json)
+
+                                    record.file_path = json_file 
+                                    record.save()                        
+                                except FileNotFoundError as e:
+                                    logger.info(f"Error: File not found at {e}")
+                                except Exception as e:
+                                    logger.info(f"Error: {e}")
+
                             
                             logger.info(f"record.ocr_text => {record.ocr_text}")
                             if not record.ocr_text:
