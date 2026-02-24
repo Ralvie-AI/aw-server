@@ -62,37 +62,56 @@ def screenshot():
 
     associated_data = f"image_format={image_format},user_id={user_id},company_id={company_id},UUID={UUID}".encode('utf-8')
     public_key_file = PUBLIC_KEY.format(email=creds.get('email'), company_id=company_id)
-    encrypted_data_json = encrypt_image_to_json_gcm(file_location, associated_data, public_key_path=public_key_file)
-    file_path_without_ext, ext = os.path.splitext(file_location)
-    json_file = f"{file_path_without_ext}.json"
+    if os.path.exists(public_key_file):
+        encrypted_data_json = encrypt_image_to_json_gcm(file_location, associated_data, public_key_path=public_key_file)
+        file_path_without_ext, ext = os.path.splitext(file_location)
+        json_file = f"{file_path_without_ext}.json"    
 
-    try:
+        try:
 
-        with open(json_file, 'w') as f:
-            f.write(encrypted_data_json)
+            with open(json_file, 'w') as f:
+                f.write(encrypted_data_json)
             
-    except FileNotFoundError as e:
-        logger.info(f"Error: File not found at {e}")
-    except Exception as e:
-        logger.info(f"Error: {e}")
-    
-    logger.info(f"json file exists => {os.path.exists(json_file)}")
-    if os.path.exists(json_file):
-        os.remove(file_location)  
-  
-    data = {
-            "event_id": event_id,
-            "file_path": json_file,
-            'created_at': datetime.fromisoformat(created_at)
-            }
-    
-    current_app.api.db.save_screenshot(data)     
+        except FileNotFoundError as e:
+            logger.info(f"Error: File not found at {e}")
+        except Exception as e:
+            logger.info(f"Error: {e}")
 
-    return jsonify({
-        'result': file_location,
-        'message': 'JSON processed successfully',
-        'received_data': json_data
-    }), 201
+        logger.info(f"json file exists => {os.path.exists(json_file)}")
+        logger.info(f"file_location exists => {os.path.exists(file_location)}")
+        # uncomment these lines to delete the image file
+        # if os.path.exists(json_file):
+        #     os.remove(file_location)  
+    
+        data = {
+                "event_id": event_id,
+                "file_path": json_file,
+                'created_at': datetime.fromisoformat(created_at)
+                }
+        
+        current_app.api.db.save_screenshot(data)     
+
+        return jsonify({
+            'result': file_location,
+            'message': 'JSON processed successfully',
+            'received_data': json_data
+        }), 201
+    
+    else:
+        logger.info(f"No public key found {public_key_file}")
+        data = {
+                "event_id": event_id,
+                "file_path": file_location,
+                'created_at': datetime.fromisoformat(created_at)
+                }
+        
+        current_app.api.db.save_screenshot(data)     
+
+        return jsonify({
+            'result': file_location,
+            'message': 'JSON processed successfully',
+            'received_data': json_data
+        }), 201
 
 @blueprint.route('/get_event_time_range', methods=['POST'])
 def get_event_time_range():
@@ -128,5 +147,7 @@ def get_event_time_range():
             'event_id': event_data.get('id'),
             'message': 'JSON processed successfully',        
         }), 200
+    
+
 
     
