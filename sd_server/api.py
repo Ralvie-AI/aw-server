@@ -38,6 +38,10 @@ from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_stri
 from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 from sd_server.ocr_active import ActiveWindowOCRText
 
+from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
+from sd_main.sd_desktop.util import (credentials)
+from sd_server.const import PUBLIC_KEY
+
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -391,8 +395,19 @@ class ServerAPI:
         """
         endpoint = f"/web/user"
         return self._post(endpoint , user)
-
+    
     def authorize(self, user:Dict[str, Any]):
+        """
+         Authorize a user. This is a POST request to the ` / web / user / authorize ` endpoint.
+
+         @param user - The user to authorize. See API docs for more information.
+
+         @return The response from the server. If there was an error the response will contain the error
+        """
+        endpoint = f"/api/v1/users/authorize"
+        return self._post(endpoint , user)
+
+    def authorize_old(self, user:Dict[str, Any]):
         """
          Authorize a user. This is a POST request to the ` / web / user / authorize ` endpoint.
 
@@ -1681,11 +1696,46 @@ class ScreenShotQueue(threading.Thread):
                     logger.info("Attempting to reconnect...")
                     self._try_connect()
                 print("self.connected ", self.connected)
+
+
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync screenshot.")
                     response_code = None
                     try:
                         for record in self.server.db.get_screenshot_record():
+                            # check if record.file_path file type is png
+                            # it means there was no public key file found for encrypting the json file
+                            tmp_file, ext = os.path.splitext(record.file_path)
+                            if ext != ".json":
+                                
+                                creds = credentials()
+                                image_format = "png"
+                                user_id = creds.get('userId')
+                                company_id  = creds.get('companyId')
+                                UUID = get_uuid_address()
+
+                                associated_data = f"image_format={image_format},user_id={user_id},company_id={company_id},UUID={UUID}".encode('utf-8')
+                                public_key_file = PUBLIC_KEY.format(email=creds.get('email'), company_id=company_id)
+
+                                if not os.path.exists(public_key_file):
+                                    logger.info(f"record.file_path => {record.file_path}")
+                                    logger.info(f"No public key found {public_key_file}")
+                                    break 
+
+                                encrypted_data_json = encrypt_image_to_json_gcm(record.file_path, associated_data, public_key_path=public_key_file)
+                                file_path_without_ext, ext = os.path.splitext(record.file_path)
+                                json_file = f"{file_path_without_ext}.json"    
+
+                                try:
+                                    with open(json_file, 'w') as f:
+                                        f.write(encrypted_data_json)
+
+                                    record.file_path = json_file 
+                                    record.save()                        
+                                except FileNotFoundError as e:
+                                    logger.info(f"Error: File not found at {e}")
+                                except Exception as e:
+                                    logger.info(f"Error: {e}")
                             
                             logger.info(f"record.ocr_text => {record.ocr_text}")
                             if not record.ocr_text:
@@ -1701,7 +1751,6 @@ class ScreenShotQueue(threading.Thread):
                                     ocr_result = json.dumps(ocr_result)
 
                                 self.server.db.update_ocr_text(record.id, ocr_result)
-
                                 break
 
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
