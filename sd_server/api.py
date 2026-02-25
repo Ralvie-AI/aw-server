@@ -1536,12 +1536,25 @@ class RalvieServerQueue(threading.Thread):
         if not self._try_connect():
             logger.info("Initial connection attempt failed. Will retry.")
 
+        last_tick_time = time.time() 
         while not self.should_stop():
+            now = time.time()
+            gap = now - last_tick_time
+
+            # detect long sleep (>10 minutes)
+            if gap > 60 * 10:
+                logger.info("Long inactivity detected. Forcing reconnect.")
+                self.connected = False
+
+            last_tick_time = now
+
             # Check internet connection and attempt to sync
             if is_internet_connected():
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
-                    self._try_connect()
+                    if self._try_connect():
+                        last_tick_time = time.time()
+
 
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync events.")
@@ -1550,6 +1563,8 @@ class RalvieServerQueue(threading.Thread):
                         logger.info(f"Sync result: {sync_result}")
                     except Exception as e:
                         logger.error(f"Error during sync: {e}")
+                        self.connected = False
+
                 else:
                     logger.warning("Not connected. Retrying in a few seconds.")
             else:
@@ -1694,7 +1709,10 @@ class ScreenShotQueue(threading.Thread):
             if is_internet_connected():
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
-                    self._try_connect()
+                    if self._try_connect():
+                        last_tick = time.time()   # reset inactivity
+                        logger.info("Reconnected successfully, resetting inactivity timer")
+
                 print("self.connected ", self.connected)
 
 
