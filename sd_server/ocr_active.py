@@ -142,39 +142,35 @@ class ActiveWindowOCRText:
     
         
     def run_ocr(self, img_path: str, min_conf=0.8, save_box_info=False, save_conf_info=False):
-        # Main OCR execution function
-
         t_init = time.perf_counter()
 
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         if img is None:
             raise ValueError("Failed to load image")
-        #logger.info(f"[TIMING] Reading the image: {time.perf_counter() - t_init:.3f}s")
 
-        # ===== Crop top 30% =====
+        #Crop top 30% 
         h, w = img.shape[:2]
         crop_height = int(h * 0.3)
         img = img[0:crop_height, 0:w]
 
-        _t_ocr_mode = time.perf_counter()
+        reader = self.get_cached_reader()
 
-        reader = self.get_cached_reader() # get RapidOCR reader
-        output = None
         try:
             output = reader(img)
         except Exception:
-            #logger.exception("[OCRText] reader(img) failed during fullscreen_ocr")
             raise
 
-        if not output:
-            #logger.info("[OCRText] No text detected")
-            return {"results": {}, "all_detections": []}
-
-        #logger.info(f"[TIMING] ocr_execution: {time.perf_counter() - _t_ocr_mode:.3f}s")
-
-        # Save as JSON file
-        _t_json = time.perf_counter()
         ts = time.strftime("%Y-%m-%d_%H-%M-%S")
+
+        #No text detected 
+        if not output:
+            logger.info("[OCRText] No text detected")
+            return {
+                "timestamp": ts,
+                "data": [{"text": "No text detected"}]
+            }
+
+        #text detected 
         json_output = {
             "timestamp": ts,
             "data": []
@@ -183,39 +179,23 @@ class ActiveWindowOCRText:
         for box, text, conf in zip(output.boxes, output.txts, output.scores):
             if conf < min_conf:
                 continue
+
             json_data = {"text": text}
+
             if save_conf_info:
                 json_data["confidence"] = float(conf)
+
             if save_box_info:
                 json_data["box"] = [[float(p[0]), float(p[1])] for p in box]
-            json_output['data'].append(json_data)
 
-        try:
-            from pathlib import Path
-            data_dir = (
-                Path.home()
-                / "Library"
-                / "Application Support"
-                / "OCRTest"
-                / "ocr_data"
-            )
+            json_output["data"].append(json_data)
 
-            data_dir.mkdir(parents=True, exist_ok=True)
-
-            output_json = os.path.join(
-                data_dir,
-                f"window_ocr_results_{time.strftime('%Y%m%d_%H%M%S')}_{int((time.time()%1)*1000):03d}" + ".json",
-            )
-            with open(output_json, "w", encoding="utf-8") as f:
-                json.dump(json_output, f, ensure_ascii=False)
-            #logger.info(f"[OCRText] JSON results saved: {output_json}")
-            #logger.info(f"[TIMING] save_ocr_json: {time.perf_counter() - _t_json:.3f}s")
-        except Exception:
-            #logger.exception(f"[OCRText] Failed to write JSON results: {output_json}")
-            raise
-
-        t_ocr_total = time.perf_counter() - t_init
-        #logger.info(f"[OCRText] run_ocr time: {t_ocr_total:.2f}s")
+        #If after filtering, no text is left.
+        if not json_output["data"]:
+            return {
+                "timestamp": ts,
+                "data": [{"text": "No text detected"}]
+            }
 
         return json_output
 
