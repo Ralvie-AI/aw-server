@@ -72,7 +72,7 @@ class ActiveWindowOCRText:
         #logger.info("[OCRText] Initializing RapidOCR reader")
 
         try:
-            from rapidocr import RapidOCR, EngineType
+            from rapidocr import RapidOCR, EngineType, OCRVersion
         except Exception as e:
             #logger.exception(f"[OCRText] Failed to import RapidOCR: {e}")
             raise RuntimeError(f"No suitable RapidOCR backend found. {e}")
@@ -96,6 +96,8 @@ class ActiveWindowOCRText:
                             "EngineConfig.torch.use_mps": True,
                             "Cls.cls_batch_num": 16,
                             "Rec.rec_batch_num": 16,
+
+                            "Rec.ocr_version": OCRVersion.PPOCRV5 ,
                         })
                         #logger.info("[OCRText] Loaded OCR Engine: Torch (MPS / Apple Silicon)")
                         logger.info("[OCR] Backend: TORCH (MPS - Apple Silicon GPU)")
@@ -120,7 +122,9 @@ class ActiveWindowOCRText:
                         "Global.use_cls": False,
                         "Det.device_name": "AUTO",
                         "Cls.device_name": "AUTO",
-                        "Rec.device_name": "AUTO"
+                        "Rec.device_name": "AUTO",
+
+                        "Rec.ocr_version": OCRVersion.PPOCRV5 ,
                     })
                     #logger.info("[OCRText] Loaded Engine: OpenVINO (Intel CPU)")
                     logger.info("[OCR] Backend: OPENVINO (Intel CPU)")
@@ -131,7 +135,10 @@ class ActiveWindowOCRText:
 
         # --- Others (ONNX Runtime) ---
         try:
-            self._reader_cache = RapidOCR(params={"Global.use_cls": False,})
+            self._reader_cache = RapidOCR(params={
+                "Global.use_cls": False,
+                "Rec.ocr_version": OCRVersion.PPOCRV5 ,
+                })
             #logger.info("[OCRText] Loaded Engine: ONNX Runtime")
             logger.info("[OCR] Backend: ONNX Runtime (CPU)")
             return self._reader_cache
