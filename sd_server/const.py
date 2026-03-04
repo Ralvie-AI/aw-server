@@ -82,8 +82,8 @@ if CONFIG_SERVER == 1:
         logger.info(f"PROTOCOL => {PROTOCOL}")
         logger.info(f"HOST => {HOST}")
     elif not os.path.exists(config_file_path):
-        # PROTOCOL = "http"
-        # HOST = "182.66.219.114:9010"
-        PROTOCOL = "https"
-        HOST = "ralvie.minervaiotstaging.com"
+        PROTOCOL = "http"
+        HOST = "182.66.219.114:9010"
+        # PROTOCOL = "https"
+        # HOST = "ralvie.minervaiotstaging.com"
         write_config("settings", PROTOCOL, HOST)

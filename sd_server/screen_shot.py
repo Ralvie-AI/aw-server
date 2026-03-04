@@ -27,7 +27,8 @@ def screenshot():
     if not json_data:
         return jsonify({'error': 'No JSON payload provided'}), 400
     
-    latest_event = current_app.api.db.get_lastest_event()   
+    event_id = json_data.get('event_id') 
+    latest_event = current_app.api.db.get_event_by_id(event_id)   
     event_data = model_to_dict(latest_event)
 
     get_afk_data = json.loads(event_data.get('datastr'))
@@ -52,34 +53,112 @@ def screenshot():
 
     associated_data = f"image_format={image_format},user_id={user_id},company_id={company_id},UUID={UUID}".encode('utf-8')
     public_key_file = PUBLIC_KEY.format(email=creds.get('email'), company_id=company_id)
-    encrypted_data_json = encrypt_image_to_json_gcm(file_location, associated_data, public_key_path=public_key_file)
-    file_path_without_ext, ext = os.path.splitext(file_location)
-    json_file = f"{file_path_without_ext}.json"    
 
-    try:
+    if os.path.exists(public_key_file):
+        encrypted_data_json = encrypt_image_to_json_gcm(file_location, associated_data, public_key_path=public_key_file)
+        file_path_without_ext, ext = os.path.splitext(file_location)
+        json_file = f"{file_path_without_ext}.json"    
 
-        with open(json_file, 'w') as f:
-            f.write(encrypted_data_json)
+        try:
+
+            with open(json_file, 'w') as f:
+                f.write(encrypted_data_json)
+            
+        except FileNotFoundError as e:
+            logger.info(f"Error: File not found at {e}")
+        except Exception as e:
+            logger.info(f"Error: {e}")
+
+        logger.info(f"json file exists => {os.path.exists(json_file)}")
+        logger.info(f"file_location exists => {os.path.exists(file_location)}")
+        # uncomment these lines to delete the image file
+        # if os.path.exists(json_file):
+        #     os.remove(file_location)   
         
-    except FileNotFoundError as e:
-        logger.info(f"Error: File not found at {e}")
-    except Exception as e:
-        logger.info(f"Error: {e}")
-
-    logger.info(f"json file exists => {os.path.exists(json_file)}")
-    if os.path.exists(json_file):
-        os.remove(file_location)
+        data = {
+                "event_id": event_id,
+                "file_path": json_file,
+                'created_at': datetime.fromisoformat(created_at)
+                }
         
-    data = {
-            "event": str(event_data.get('eventId')),
-            "file_path": json_file,
-            'created_at': datetime.fromisoformat(created_at)
-            }
+        current_app.api.db.save_screenshot(data)     
+
+        return jsonify({
+            'result': file_location,
+            'message': 'JSON processed successfully',
+            'received_data': json_data
+        }), 201
+
+    else:
+        logger.info(f"No public key found {public_key_file}")
+        data = {
+                "event_id": event_id,
+                "file_path": file_location,
+                'created_at': datetime.fromisoformat(created_at)
+                }
+        
+        current_app.api.db.save_screenshot(data)     
+
+        return jsonify({
+            'result': file_location,
+            'message': 'JSON processed successfully',
+            'received_data': json_data
+        }), 201
+
+
+@blueprint.route('/get_event_time_range', methods=['POST'])
+def get_event_time_range():
     
-    current_app.api.db.save_screenshot(data)     
+    json_data = request.get_json()  # Expects Content-Type: application/json
+    if not json_data:
+        return jsonify({'error': 'No JSON payload provided'}), 400
+    
+    start_time = json_data.get('start_time') 
+    end_time = json_data.get('end_time') 
+    events_range = current_app.api.db.get_events_timestamp_range(start_time, end_time)   
+    # logger.info(f"events_range => {type(events_range)}")
+    # logger.info(f"events_range => {events_range}")
 
-    return jsonify({
-        'result': file_location,
-        'message': 'JSON processed successfully',
-        'received_data': json_data
-    }), 201
+    events = []
+    for event in events_range:
+        result = {}
+        result['id'] = event.id
+        result['timestamp'] = event.timestamp
+        result['duration'] = float(event.duration) 
+        events.append(result)
+
+        # logger.info(f"event = {event}")
+        # logger.info(f"event type = {type(event)}")
+        # logger.info(f"event time => {event.timestamp}, type => {type({event.timestamp})}")
+    logger.info(f"events => {events}")
+    if events:
+        return jsonify({
+            'result': json.dumps(events),
+            'event_id': "",
+            'message': 'JSON processed successfully',        
+        }), 200
+    else:
+        latest_event = current_app.api.db.get_lastest_event()   
+        event_data = model_to_dict(latest_event)
+
+        return jsonify({
+            'result': json.dumps(events),
+            'event_id': event_data.get('id'),
+            'message': 'JSON processed successfully',        
+        }), 200
+
+
+@blueprint.route('/update_ocr_text', methods=['POST'])
+def update_ocr_text():
+    
+    json_data = request.get_json()  # Expects Content-Type: application/json
+    if not json_data:
+        return jsonify({'error': 'No JSON payload provided'}), 400
+    
+    screenshot_id = json_data.get('screenshot_id') 
+    ocr_result = json_data.get('ocr_text') 
+    current_app.api.db.update_ocr_text(screenshot_id, ocr_result)
+    
+    return jsonify({        
+        'message': 'JSON processed successfully',        
+    }), 200

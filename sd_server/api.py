@@ -32,9 +32,15 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, convert_datetime_string)
+from sd_server.utils import (get_uuid_address, send_to_gui, stop_process_by_exe, convert_datetime_string, 
+                             start_exe, get_running_path)
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
                              PROTOCOL, HOST, CACHE_KEY, SCREEN_SHOT_SYNC_TIME)
+
+
+from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
+from sd_qt.sd_desktop.util import (credentials)
+from sd_server.const import PUBLIC_KEY
 
 
 HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
@@ -274,7 +280,8 @@ class ServerAPI:
 
         if "accept-language" in data:
             headers.update({"accept-language": data.get('accept-language')})
-        
+        logger.info(f"data => {data}")
+        logger.info(f"json dumps data => {json.dumps(data)}")
         if 'timeout' in data:
             timeout = data.pop("timeout")
             return req.post(
@@ -407,7 +414,7 @@ class ServerAPI:
         """
         
         
-        endpoint = f"/web/user/authorize"
+        endpoint = f"/api/v1/users/authorize"
         return self._post(endpoint , user)
 
     def refresh_token(self, payload:Dict[str, Any]):
@@ -613,7 +620,20 @@ class ServerAPI:
             else:
                 afk_dict["app"] = record.event.app
                 afk_dict["title"] = record.event.title
+            # logger.info(f"record.ocr_text => {record.ocr_text}")
+            # logger.info(f"record.ocr_text => {type(record.ocr_text)}")
+            # json_load_data = json.dumps(record.ocr_text)
+            # logger.info(f"record.ocr_text ocr => {json_load_data}")
+            # logger.info(f"record.ocr_text ocr => {type(json_load_data)}")
 
+            ocr_data = []
+            ocr_text_json = json.loads(record.ocr_text)
+            for data in ocr_text_json.get('data'):
+                ocr_data.append(data)
+
+            logger.info(f"record.ocr_text ocr => {type(ocr_data)}")
+            logger.info(f"orc_data => {ocr_data}")
+            
             payload = {"userId": userId, 
                        "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -624,6 +644,7 @@ class ServerAPI:
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
+                        "ocrText": ocr_data
                         }
 
             logger.info(f"payload info => {payload}")
@@ -633,6 +654,7 @@ class ServerAPI:
                 try:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
+                    # response = self._post(endpoint, payload)
                     logging.info(f"result testing => {response.json()}")
                     json_data = response.json()
                     logger.info(f"json_data => {json_data}")
@@ -1550,7 +1572,7 @@ class ScreenShotQueue(threading.Thread):
         self.server = server
         self.userId = ""
         self.connected = False
-        self._stop_event = threading.Event()
+        self._stop_event = threading.Event()          
 
     def _try_connect(self) -> bool:
         try:
@@ -1674,6 +1696,65 @@ class ScreenShotQueue(threading.Thread):
                     try:
                         logger.info(f"self.server.db.get_screenshot_record() length => {len(self.server.db.get_screenshot_record())}")
                         for record in self.server.db.get_screenshot_record():
+
+                            # check if record.file_path file type is png
+                            # it means there was no public key file found for encrypting the json file
+                            tmp_file, ext = os.path.splitext(record.file_path)
+                            if ext != ".json":
+                                
+                                creds = credentials()
+                                image_format = "png"
+                                user_id = creds.get('userId')
+                                company_id  = creds.get('companyId')
+                                UUID = get_uuid_address()
+
+                                associated_data = f"image_format={image_format},user_id={user_id},company_id={company_id},UUID={UUID}".encode('utf-8')
+                                public_key_file = PUBLIC_KEY.format(email=creds.get('email'), company_id=company_id)
+
+                                if not os.path.exists(public_key_file):
+                                    logger.info(f"record.file_path => {record.file_path}")
+                                    logger.info(f"No public key found {public_key_file}")
+                                    break 
+
+                                encrypted_data_json = encrypt_image_to_json_gcm(record.file_path, associated_data, public_key_path=public_key_file)
+                                file_path_without_ext, ext = os.path.splitext(record.file_path)
+                                json_file = f"{file_path_without_ext}.json"    
+
+                                try:
+                                    with open(json_file, 'w') as f:
+                                        f.write(encrypted_data_json)
+
+                                    record.file_path = json_file 
+                                    record.save()                        
+                                except FileNotFoundError as e:
+                                    logger.info(f"Error: File not found at {e}")
+                                except Exception as e:
+                                    logger.info(f"Error: {e}")
+
+                            
+                            logger.info(f"record.ocr_text => {record.ocr_text}")
+                            if not record.ocr_text:
+                                logger.info(f"record.file_path => {record.file_path}")
+                                tmp_file_path, ext = os.path.splitext(record.file_path)
+                                screenshot_file = f"{tmp_file_path}.png"
+                                logger.info(f"screenshot_file => {screenshot_file}")
+                                server_url = "http://localhost:7600/screenshot/update_ocr_text"
+                                file_location = get_running_path()
+                                sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity/sd-ocr-activity.exe")   
+                                command_list = [             
+                                        sd_ocr_activity_exe,                          
+                                        "--server_url", server_url,
+                                        "--image_path", screenshot_file,
+                                        "--screenshot_id", str(record.id),                                        
+                                    ]
+                                logger.info(f"command_list => {command_list}")
+                                start_exe(command_list)
+                                # ocr_result = self.orc.run_ocr(img_path=screenshot_file)
+                                # logger.info(f'result => {ocr_result}')
+                                # logger.info(f'result type=> {type(ocr_result)}')
+                                # self.server.db.update_ocr_text(record.id, ocr_result)
+                                break
+                            
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
                                 response_code = REJECTED_SYNC_STATUS
@@ -1685,10 +1766,15 @@ class ScreenShotQueue(threading.Thread):
                                 if sync_result == "RCI0000":
                                     logger.info(f"record.sync_status after => {record.sync_status}")
                                     if record.sync_status == 1:
-                                        logger.info(f"dir => {dir(record)}")
+                                        # logger.info(f"dir => {dir(record)}")
                                         img_file_path = record.file_path
                                         logger.info(f"img_file_path => {img_file_path}")
                                         os.remove(img_file_path)
+
+                                        # Delete the screenshot file
+                                        tmp_file_path, ext = os.path.splitext(img_file_path)
+                                        screenshot_file = f"{tmp_file_path}.png"
+                                        os.remove(screenshot_file)
                                         record.delete_instance()
                             else:
                                 if record.object_key:
@@ -1697,11 +1783,14 @@ class ScreenShotQueue(threading.Thread):
                                     if sync_result == "RCI0000":
                                         logger.info(f"record.sync_status after => {record.sync_status}")
                                         logger.info(f"record.object_key after => {record.object_key}")
-                                        if record.sync_status == 1:
+                                        if record.sync_status == 1 and record.ocr_text:
                                             logger.info(f"dir retry => {dir(record)}")
                                             img_file_path = record.file_path
                                             logger.info(f"img_file_path retry => {img_file_path}")
                                             os.remove(img_file_path)
+                                            tmp_file_path, ext = os.path.splitext(img_file_path)
+                                            screenshot_file = f"{tmp_file_path}.png"
+                                            os.remove(screenshot_file)
                                             record.delete_instance()
 
                         if response_code == REJECTED_SYNC_STATUS:
