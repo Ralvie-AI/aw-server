@@ -8,6 +8,7 @@ import json
 import logging
 import base64
 import time
+import threading
 from datetime import datetime
 
 import win32file
@@ -355,8 +356,52 @@ def get_running_path():
         return os.path.dirname(sys.executable)
     else:
         return os.path.dirname(os.path.abspath(__file__))
-    
-def start_exe(exec_cmd, process_name=None):
+
+def _task_runner(exec_cmd, timeout_sec):
+    logger.info(f"Starting module {exec_cmd}")
+    if not isinstance(exec_cmd, list):
+        exec_cmd = [exec_cmd]
+
+    logger.debug("Running: {}".format(exec_cmd))
+
+    # Don't display a console window on Windows
+    # See: https://github.com/ActivityWatch/activitywatch/issues/212
+    startupinfo = None
+    if sys.platform in ("win32", "cygwin"):
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+    try:
+        # Use the 'with' statement to ensure underlying handles are cleaned up even if exceptions occur
+        with subprocess.Popen(
+                exec_cmd,
+                universal_newlines=True,
+                startupinfo=startupinfo
+        ) as proc:
+
+            try:
+                # Block and wait, with a timeout mechanism to prevent the process accumulation
+                proc.wait(timeout=timeout_sec)
+            except subprocess.TimeoutExpired:
+                # If the exe hangs, force kill it to prevent processes from piling up!
+                logger.error(f"Task execution timed out ({timeout_sec}s)! Force cleaning up...")
+                proc.kill()
+                proc.wait()
+    except Exception as e:
+        logger.error(f"Unexpected error occurred while starting the process: {e}")
+
+def start_exe(exec_cmd, timeout_sec=None):
+    logger.info(f"Starting module start exe {exec_cmd}")
+    worker_thread = threading.Thread(
+        target=_task_runner,
+        args=(exec_cmd, timeout_sec),
+        daemon=True
+    )
+    worker_thread.start()
+    return worker_thread
+
+
+def start_exe_old(exec_cmd, process_name=None):
     logger.info(f"Starting module {exec_cmd}")
     if not isinstance(exec_cmd, list):
         exec_cmd = [exec_cmd]        

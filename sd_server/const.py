@@ -5,7 +5,7 @@ import os
 
 
 DEVELOPMENT_MODE = 1
-STAGING = 0
+STAGING = 1
 LOGGING_VERBOSE = 0
 
 PROTOCOL = "https"
@@ -41,7 +41,7 @@ SUCCESSFUL_SYNC_STATUS = "RCI0000" # store the events successful in server side
 REJECTED_SYNC_STATUS = "RCE0219" # server rejected these events
 NO_USER_FOUND = "RCE0039" # User does not exist
 
-CONFIG_SERVER = 1
+CONFIG_SERVER = 0
 
 if CONFIG_SERVER == 1:
     import os

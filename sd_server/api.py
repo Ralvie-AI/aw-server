@@ -1748,7 +1748,7 @@ class ScreenShotQueue(threading.Thread):
                                         "--screenshot_id", str(record.id),                                        
                                     ]
                                 logger.info(f"command_list => {command_list}")
-                                start_exe(command_list)
+                                start_exe(command_list, timeout_sec=50)
                                 # ocr_result = self.orc.run_ocr(img_path=screenshot_file)
                                 # logger.info(f'result => {ocr_result}')
                                 # logger.info(f'result type=> {type(ocr_result)}')
