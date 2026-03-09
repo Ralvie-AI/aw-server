@@ -143,7 +143,7 @@ class ActiveWindowOCRText:
             logger.info("[OCR] Backend: ONNX Runtime (CPU)")
             return self._reader_cache
         except Exception as e:
-            #logger.exception(f"[OCRText] ONNX Runtime backend failed to load: {e}")
+            logger.exception(f"[OCRText] ONNX Runtime backend failed to load: {e}")
             raise RuntimeError("All RapidOCR backends failed to initialize.")
 
     
