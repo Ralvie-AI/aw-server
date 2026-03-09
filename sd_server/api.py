@@ -1797,10 +1797,16 @@ class ScreenShotQueue(threading.Thread):
                             threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                             threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
                             threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
-                            logger.info("Server rejected these events test asdf")
+                            logger.info("Events were rejected by the server. It looks like a session conflict caused by a concurrent login on a different machine.")
 
                             for record in self.server.db.get_screenshot_record():
+                                tmp_file_path, ext = os.path.splitext(record.file_path)
+                                screenshot_file = f"{tmp_file_path}.png"
+                                if os.path.exists(screenshot_file):
+                                    logger.info(f"delete screenshot file {screenshot_file}")
+                                    os.remove(screenshot_file)
                                 if os.path.exists(record.file_path):
+                                    logger.info(f"delete record.file_path {record.file_path}")
                                     os.remove(record.file_path)
                                 record.delete_instance()
                             
@@ -1811,7 +1817,6 @@ class ScreenShotQueue(threading.Thread):
                                     event_ids = [obj['event_id'] for obj in events]
                                     self.server.db.update_server_sync_status(list_of_ids=list(event_ids), new_status=2)
 
-                            threading.Thread(target=stop_process_by_exe, args=("sd-server.exe",)).start()
                             logger.info("To logout automatically")
                             send_to_gui("fail")
 
