@@ -1761,6 +1761,12 @@ class ScreenShotQueue(threading.Thread):
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}.png"
                                 logger.info(f"screenshot_file => {screenshot_file}")
+
+                                if not os.path.exists(screenshot_file):
+                                    logger.warning(f"Screenshot file missing: {screenshot_file}")
+                                    record.delete_instance()
+                                    continue   
+
                                 ocr_result = self.ocr.run_ocr(img_path=screenshot_file)
                                 logger.info(f'result => {ocr_result}')
                                 logger.info(f'result type=> {type(ocr_result)}')
@@ -1817,10 +1823,16 @@ class ScreenShotQueue(threading.Thread):
                             threading.Thread(target=stop_process, args=(macos_pid,)).start()
                             threading.Thread(target=stop_process, args=(afk_pid,)).start()
                             threading.Thread(target=stop_process, args=(screenshot_pid,)).start()
-                            logger.info("Server rejected these events test asdf")
+                            logger.info("Events were rejected by the server. It looks like a session conflict caused by a concurrent login on a different machine.")
 
                             for record in self.server.db.get_screenshot_record():
+                                tmp_file_path, ext = os.path.splitext(record.file_path)
+                                screenshot_file = f"{tmp_file_path}.png"
+                                if os.path.exists(screenshot_file):
+                                    logger.info(f"delete screenshot file {screenshot_file}")
+                                    os.remove(screenshot_file)
                                 if os.path.exists(record.file_path):
+                                    logger.info(f"delete record.file_path {record.file_path}")
                                     os.remove(record.file_path)
                                 record.delete_instance()
                             
