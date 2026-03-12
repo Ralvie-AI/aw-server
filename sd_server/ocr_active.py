@@ -155,10 +155,16 @@ class ActiveWindowOCRText:
         if img is None:
             raise ValueError("Failed to load image")
 
-        #Crop top 30% 
+        # Crop top 30% 
+        # h, w = img.shape[:2]
+        # crop_height = int(h * 0.3)
+        # img = img[0:crop_height, 0:w]
+
+        # Exclude top 10%, crop next 30%
         h, w = img.shape[:2]
-        crop_height = int(h * 0.3)
-        img = img[0:crop_height, 0:w]
+        start_height = int(h * 0.1)
+        end_height = int(h * 0.4)
+        img = img[start_height:end_height, 0:w]
 
         reader = self.get_cached_reader()
 
