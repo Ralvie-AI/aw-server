@@ -1,6 +1,6 @@
 
 rapidocr==3.6.0
-onnxruntime==1.23.2
+onnxruntime==1.19.2
 opencv-python-headless==4.9.0.80
 numpy==1.26.4
 Shapely==1.8.5.post1
