@@ -3,6 +3,7 @@ import functools
 import json
 import logging
 import time
+import re
 from datetime import datetime, timedelta, timezone
 import uuid
 from pathlib import Path
@@ -633,6 +634,13 @@ class ServerAPI:
 
             logger.info(f"record.ocr_text ocr => {type(ocr_data)}")
             logger.info(f"orc_data => {ocr_data}")
+
+
+            filename = Path(record.file_path).name
+            file_date_time = re.sub(r"^[^_]+_|\.json$", "", filename)
+            dt = datetime.strptime(file_date_time, "%Y-%m-%dT%H-%M-%S.%fZ")
+            screenshot_capture_time = dt.strftime("%Y-%m-%dT%H:%M:00Z")
+            
             
             payload = {"userId": userId, 
                        "companyId": companyId,    
@@ -643,7 +651,7 @@ class ServerAPI:
                         "applicationName": record.event.application_name,         
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
-                        "screenshotCaptureTime": convert_datetime_string(record.created_at),
+                        "screenshotCaptureTime": screenshot_capture_time,
                         "ocrText": ocr_data
                         }
 
