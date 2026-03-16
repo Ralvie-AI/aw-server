@@ -22,7 +22,7 @@ blueprint = Blueprint("screenshot", __name__, url_prefix="/screenshot")
 
 @blueprint.route('/', methods=['POST'])
 def screenshot():
-    logger.info("screen shot testing")
+    # logger.info("screen shot testing")
     json_data = request.get_json()  # Expects Content-Type: application/json
     if not json_data:
         return jsonify({'error': 'No JSON payload provided'}), 400
@@ -34,8 +34,8 @@ def screenshot():
     get_afk_data = json.loads(event_data.get('datastr'))
     file_location = json_data.get('file_location') 
     created_at = json_data.get('created_at') 
-    logger.info(f"file_location => {file_location}")
-    logger.info(f"created_at => {created_at}")
+    # logger.info(f"file_location => {file_location}")
+    # logger.info(f"created_at => {created_at}")
 
     # if is_idle_screenshot was false, no need to take screen shot for idle time.    
     if get_afk_data.get('status') == 'afk' and not json_data.get('is_idle_screenshot'):
@@ -69,8 +69,8 @@ def screenshot():
         except Exception as e:
             logger.info(f"Error: {e}")
 
-        logger.info(f"json file exists => {os.path.exists(json_file)}")
-        logger.info(f"file_location exists => {os.path.exists(file_location)}")
+        # logger.info(f"json file exists => {os.path.exists(json_file)}")
+        # logger.info(f"file_location exists => {os.path.exists(file_location)}")
         # uncomment these lines to delete the image file
         # if os.path.exists(json_file):
         #     os.remove(file_location)   
@@ -130,7 +130,7 @@ def get_event_time_range():
         # logger.info(f"event = {event}")
         # logger.info(f"event type = {type(event)}")
         # logger.info(f"event time => {event.timestamp}, type => {type({event.timestamp})}")
-    logger.info(f"events => {events}")
+    # logger.info(f"events => {events}")
     if events:
         return jsonify({
             'result': json.dumps(events),

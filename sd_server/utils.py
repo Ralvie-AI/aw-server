@@ -280,9 +280,9 @@ def get_uuid_address(email=None, system_uuid=None):
         if items:
             result = json.loads(items)
             key = result.get('email')
-            logger.info(f"Getting email from cache: {key}")
+            # logger.info(f"Getting email from cache: {key}")
             lowercase_password = key.lower()
-            logger.info(f"mail lowercase {lowercase_password}")
+            # logger.info(f"mail lowercase {lowercase_password}")
             return encrypt_system_uuid(system_uuid, lowercase_password)
     return None
 
@@ -358,7 +358,7 @@ def get_running_path():
         return os.path.dirname(os.path.abspath(__file__))
 
 def _task_runner(exec_cmd, timeout_sec):
-    logger.info(f"Starting module {exec_cmd}")
+    # logger.info(f"Starting module {exec_cmd}")
     if not isinstance(exec_cmd, list):
         exec_cmd = [exec_cmd]
 
@@ -391,7 +391,7 @@ def _task_runner(exec_cmd, timeout_sec):
         logger.error(f"Unexpected error occurred while starting the process: {e}")
 
 def start_exe(exec_cmd, timeout_sec=None):
-    logger.info(f"Starting module start exe {exec_cmd}")
+    # logger.info(f"Starting module start exe {exec_cmd}")
     worker_thread = threading.Thread(
         target=_task_runner,
         args=(exec_cmd, timeout_sec),
@@ -399,27 +399,6 @@ def start_exe(exec_cmd, timeout_sec=None):
     )
     worker_thread.start()
     return worker_thread
-
-
-def start_exe_old(exec_cmd, process_name=None):
-    logger.info(f"Starting module {exec_cmd}")
-    if not isinstance(exec_cmd, list):
-        exec_cmd = [exec_cmd]        
-    logger.debug("Running: {}".format(exec_cmd))
-
-    # Don't display a console window on Windows
-    # See: https://github.com/ActivityWatch/activitywatch/issues/212
-    startupinfo = None
-    if sys.platform == "win32" or sys.platform == "cygwin":
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-   
-
-    # There is a very good reason stdout and stderr is not PIPE here
-    # See: https://github.com/ActivityWatch/aw-server/issues/27
-    _process = subprocess.Popen(
-        exec_cmd, universal_newlines=True, startupinfo=startupinfo
-    )
 
 if __name__ == '__main__':
     password = "hello@example.com"

@@ -265,7 +265,7 @@ class ServerAPI:
         if data.get('userName'):
             uuid_address = get_uuid_address(data.get('userName'))
             logger.info(f"uuid_address  {uuid_address}")
-            logger.info(f"uuid_address email   {data.get('userName')}")
+            # logger.info(f"uuid_address email   {data.get('userName')}")
         else:
             uuid_address = get_uuid_address()
             logger.info(f"no email param uuid_address  {uuid_address}")
@@ -281,8 +281,8 @@ class ServerAPI:
 
         if "accept-language" in data:
             headers.update({"accept-language": data.get('accept-language')})
-        logger.info(f"data => {data}")
-        logger.info(f"json dumps data => {json.dumps(data)}")
+        # logger.info(f"data => {data}")
+        # logger.info(f"json dumps data => {json.dumps(data)}")
         if 'timeout' in data:
             timeout = data.pop("timeout")
             return req.post(
@@ -503,16 +503,12 @@ class ServerAPI:
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
-                # logger.info(f"Sync events ids {event_ids}")
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
                         
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat()) 
-                        # time.sleep(len(events))
-                        # logger.info(f"Successfully synced {len(events)} events.")
-                        # logger.info(f"Successfully synced events {event_ids}")
                         return {"status": f"Successfully synced total events => {len(event_ids)}" }
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
 
@@ -594,13 +590,18 @@ class ServerAPI:
         except Exception as e:
             logger.error(f"Error during sync_events_to_ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}
+
+    def get_screenshot_capture_time(self, file_path):
+        filename = Path(file_path).name
+        file_date_time = re.sub(r"^[^_]+_|\.json$", "", filename)
+        dt = datetime.strptime(file_date_time, "%Y-%m-%dT%H-%M-%S.%fZ")
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         
     def sync_screenshot_to_ralvie(self, object_key, record):
         try:
 
             json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
-            logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
@@ -621,26 +622,14 @@ class ServerAPI:
             else:
                 afk_dict["app"] = record.event.app
                 afk_dict["title"] = record.event.title
-            # logger.info(f"record.ocr_text => {record.ocr_text}")
-            # logger.info(f"record.ocr_text => {type(record.ocr_text)}")
-            # json_load_data = json.dumps(record.ocr_text)
-            # logger.info(f"record.ocr_text ocr => {json_load_data}")
-            # logger.info(f"record.ocr_text ocr => {type(json_load_data)}")
 
             ocr_data = []
             ocr_text_json = json.loads(record.ocr_text)
             for data in ocr_text_json.get('data'):
                 ocr_data.append(data)
 
-            logger.info(f"record.ocr_text ocr => {type(ocr_data)}")
-            logger.info(f"orc_data => {ocr_data}")
-
-
-            filename = Path(record.file_path).name
-            file_date_time = re.sub(r"^[^_]+_|\.json$", "", filename)
-            dt = datetime.strptime(file_date_time, "%Y-%m-%dT%H-%M-%S.%fZ")
-            screenshot_capture_time = dt.strftime("%Y-%m-%dT%H:%M:00Z")
-            
+            # logger.info(f"orc_data => {ocr_data}")
+            screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)            
             
             payload = {"userId": userId, 
                        "companyId": companyId,    
@@ -655,7 +644,7 @@ class ServerAPI:
                         "ocrText": ocr_data
                         }
 
-            logger.info(f"payload info => {payload}")
+            # logger.info(f"payload info => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
@@ -663,16 +652,12 @@ class ServerAPI:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
                     # response = self._post(endpoint, payload)
-                    logging.info(f"result testing => {response.json()}")
-                    json_data = response.json()
-                    logger.info(f"json_data => {json_data}")
-                    logger.info(f"json_data code => {json_data.get('code')}")
-                    logging.info(f"url => {json_data.get('data').get('url')}")                         
+                    json_data = response.json()                    
                     
                     if json_data.get('code') == "RCI0000":
                         record.sync_status = 1
                         record.save()
-                        logging.info(f"save record {record}")
+                        # logging.info(f"save record {record}")
                         uploaded_success = json_data.get('code')                   
                     else:
                         uploaded_success = json_data.get('code')
@@ -719,6 +704,8 @@ class ServerAPI:
                 afk_dict["app"] = record.event.app
                 afk_dict["title"] = record.event.title
 
+            screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)   
+
             payload = {"userId": userId, 
                        "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -728,26 +715,22 @@ class ServerAPI:
                         "applicationName": record.event.application_name,         
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
-                        "screenshotCaptureTime": convert_datetime_string(record.created_at),
+                        "screenshotCaptureTime": screenshot_capture_time,
                         }
 
-            logger.info(f"payload info => {payload}")
+            # logger.info(f"payload info => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
                     logging.info(f"attempt => {attempt}")
-                    response = self._post(endpoint, payload, {"Authorization": token})
-                    logging.info(f"result testing => {response.json()}")
-                    json_data = response.json()
-                    logger.info(f"json_data => {json_data}")
-                    logger.info(f"json_data code => {json_data.get('code')}")
-                    logging.info(f"url => {json_data.get('data').get('url')}")                         
+                    response = self._post(endpoint, payload, {"Authorization": token})   
+                    json_data = response.json()                   
                     
                     if json_data.get('code') == "RCI0000":
                         record.sync_status = 1
                         record.save()
-                        logging.info(f"save record {record}")
+                        # logging.info(f"save record {record}")
                         uploaded_success = json_data.get('code')                   
 
                     break
@@ -1625,10 +1608,10 @@ class ScreenShotQueue(threading.Thread):
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=HOST, user_id=userId, company_id=companyId )
-                logger.info(f"url => {url}")
+                # logger.info(f"url => {url}")
                 res = requests.get(url, headers=headers)
                 data = res.json()                
-                logger.info(f"result get_pre_signed_url => {data}")
+                # logger.info(f"result get_pre_signed_url => {data}")
                 if data.get('code') == REJECTED_SYNC_STATUS:
                     result = None, None, REJECTED_SYNC_STATUS
                 else:
@@ -1692,7 +1675,7 @@ class ScreenShotQueue(threading.Thread):
 
         while not self.should_stop():
             # Check internet connection and attempt to sync
-            print("is_internet_connected()", is_internet_connected())
+            # print("is_internet_connected()", is_internet_connected())
             if is_internet_connected():
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
@@ -1702,7 +1685,7 @@ class ScreenShotQueue(threading.Thread):
                     logger.info("Connected to internet. Attempting to sync screenshot.")
                     response_code = None
                     try:
-                        logger.info(f"self.server.db.get_screenshot_record() length => {len(self.server.db.get_screenshot_record())}")
+                        # logger.info(f"self.server.db.get_screenshot_record() length => {len(self.server.db.get_screenshot_record())}")
                         for record in self.server.db.get_screenshot_record():
 
                             # check if record.file_path file type is png
@@ -1740,12 +1723,12 @@ class ScreenShotQueue(threading.Thread):
                                     logger.info(f"Error: {e}")
 
                             
-                            logger.info(f"record.ocr_text => {record.ocr_text}")
+                            # logger.info(f"record.ocr_text => {record.ocr_text}")
                             if not record.ocr_text:
-                                logger.info(f"record.file_path => {record.file_path}")
+                                # logger.info(f"record.file_path => {record.file_path}")
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}.png"
-                                logger.info(f"screenshot_file => {screenshot_file}")
+                                # logger.info(f"screenshot_file => {screenshot_file}")
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
                                 file_location = get_running_path()
                                 sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity/sd-ocr-activity.exe")   
@@ -1755,7 +1738,7 @@ class ScreenShotQueue(threading.Thread):
                                         "--image_path", screenshot_file,
                                         "--screenshot_id", str(record.id),                                        
                                     ]
-                                logger.info(f"command_list => {command_list}")
+                                # logger.info(f"command_list => {command_list}")
                                 start_exe(command_list, timeout_sec=50)
                                 # ocr_result = self.orc.run_ocr(img_path=screenshot_file)
                                 # logger.info(f'result => {ocr_result}')
@@ -1776,7 +1759,7 @@ class ScreenShotQueue(threading.Thread):
                                     if record.sync_status == 1:
                                         # logger.info(f"dir => {dir(record)}")
                                         img_file_path = record.file_path
-                                        logger.info(f"img_file_path => {img_file_path}")
+                                        # logger.info(f"img_file_path => {img_file_path}")
                                         os.remove(img_file_path)
 
                                         # Delete the screenshot file
@@ -1792,9 +1775,9 @@ class ScreenShotQueue(threading.Thread):
                                         logger.info(f"record.sync_status after => {record.sync_status}")
                                         logger.info(f"record.object_key after => {record.object_key}")
                                         if record.sync_status == 1 and record.ocr_text:
-                                            logger.info(f"dir retry => {dir(record)}")
+                                            # logger.info(f"dir retry => {dir(record)}")
                                             img_file_path = record.file_path
-                                            logger.info(f"img_file_path retry => {img_file_path}")
+                                            # logger.info(f"img_file_path retry => {img_file_path}")
                                             os.remove(img_file_path)
                                             tmp_file_path, ext = os.path.splitext(img_file_path)
                                             screenshot_file = f"{tmp_file_path}.png"
