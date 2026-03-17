@@ -148,7 +148,7 @@ class ActiveWindowOCRText:
 
     
         
-    def run_ocr(self, img_path: str, min_conf=0.8, save_box_info=False, save_conf_info=False):
+    def run_ocr(self, img_path: str, min_conf=0.9, save_box_info=False, save_conf_info=False):
         t_init = time.perf_counter()
 
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
