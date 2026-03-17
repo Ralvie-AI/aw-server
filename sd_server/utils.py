@@ -136,9 +136,9 @@ def get_uuid_address(email=None, system_uuid=None):
         if items:
             result = json.loads(items)
             key = result.get('email')
-            logger.info(f"Getting email from cache: {key}")
+            # logger.info(f"Getting email from cache: {key}")
             lowercase_password = key.lower()
-            logger.info(f"mail lowercase {lowercase_password}")
+            # logger.info(f"mail lowercase {lowercase_password}")
             return encrypt_system_uuid(system_uuid, lowercase_password)
     return None
 

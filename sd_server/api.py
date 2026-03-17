@@ -258,6 +258,7 @@ class ServerAPI:
         max_address = hex(uuid.getnode())
         if data.get('userName'):
             uuid_address = get_uuid_address(data.get('userName'))
+            # logger.info(f"uuid_address email   {data.get('userName')}")
         else:
             uuid_address = get_uuid_address()
 
@@ -273,8 +274,8 @@ class ServerAPI:
             headers.update({"accept-language": data.get('accept-language')})
         
         print(headers)
-        logger.info(f"data => {data}")
-        logger.info(f"json dumps data => {json.dumps(data)}")
+        # logger.info(f"data => {data}")
+        # logger.info(f"json dumps data => {json.dumps(data)}")
         if 'timeout' in data:
             timeout = data.pop("timeout")
             return req.post(
@@ -499,7 +500,7 @@ class ServerAPI:
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
-                logger.info(f"events {events}")
+                # logger.info(f"events {events}")
 
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
@@ -507,8 +508,8 @@ class ServerAPI:
                         
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
-                        logger.info(f"Successfully synced {len(events)} events.")
-                        logger.info(f"Events {event_ids}")
+                        # logger.info(f"Successfully synced {len(events)} events.")
+                        # logger.info(f"Events {event_ids}")
                         return {"status": f"Successfully synced total events => {len(event_ids)}" }
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
                         is_failed_event = False
@@ -582,7 +583,7 @@ class ServerAPI:
 
             json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
-            logger.info(f"User ID from load_key: {userId}")
+            # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
@@ -619,8 +620,8 @@ class ServerAPI:
                     logger.error(f"OCR JSON parse failed: {e}")
                     ocr_data = []
 
-            logger.info(f"record.ocr_text type => {type(record.ocr_text)}")
-            logger.info(f"ocr_data => {ocr_data}")
+            # logger.info(f"record.ocr_text type => {type(record.ocr_text)}")
+            # logger.info(f"ocr_data => {ocr_data}")
 
 
             payload = {"userId": userId, 
@@ -636,23 +637,23 @@ class ServerAPI:
                         "ocrText": ocr_data
                         }
         
-            logger.info(f"payload info => {payload}")
+            # logger.info(f"payload info => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
-                    logging.info(f"result testing => {response.json()}")
+                    # logging.info(f"result testing => {response.json()}")
                     json_data = response.json()
-                    logger.info(f"json_data => {json_data}")
-                    logger.info(f"json_data code => {json_data.get('code')}")
-                    logging.info(f"url => {json_data.get('data').get('url')}")                         
+                    # logger.info(f"json_data => {json_data}")
+                    # logger.info(f"json_data code => {json_data.get('code')}")
+                    # logging.info(f"url => {json_data.get('data').get('url')}")                         
 
                     if json_data.get('code') == "RCI0000":
                         record.sync_status = 1
                         record.save()
-                        logging.info(f"save record {record}")
+                        # logging.info(f"save record {record}")
                         uploaded_success = json_data.get('code')
                     else:
                         uploaded_success = json_data.get('code')
@@ -710,23 +711,23 @@ class ServerAPI:
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
                         }
 
-            logger.info(f"payload info => {payload}")
+            # logger.info(f"payload info => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
-                    logging.info(f"result testing => {response.json()}")
+                    # logging.info(f"result testing => {response.json()}")
                     json_data = response.json()
-                    logger.info(f"json_data => {json_data}")
-                    logger.info(f"json_data code => {json_data.get('code')}")
-                    logging.info(f"url => {json_data.get('data').get('url')}")                         
+                    # logger.info(f"json_data => {json_data}")
+                    # logger.info(f"json_data code => {json_data.get('code')}")
+                    # logging.info(f"url => {json_data.get('data').get('url')}")                         
 
                     if json_data.get('code') == "RCI0000":
                         record.sync_status = 1
                         record.save()
-                        logging.info(f"save record {record}")
+                        # logging.info(f"save record {record}")
                         uploaded_success = json_data.get('code')  
                     break
                 except Exception as e:
@@ -1628,10 +1629,10 @@ class ScreenShotQueue(threading.Thread):
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=HOST, user_id=userId, company_id=companyId )
-                logger.info(f"url => {url}")
+                # logger.info(f"url => {url}")
                 res = requests.get(url, headers=headers)
                 data = res.json()                
-                logger.info(f"result get_pre_signed_url => {data}")
+                # logger.info(f"result get_pre_signed_url => {data}")
                 if data.get('code') == REJECTED_SYNC_STATUS:
                     result = None, None, REJECTED_SYNC_STATUS
                 else:
@@ -1705,7 +1706,7 @@ class ScreenShotQueue(threading.Thread):
 
             last_tick = now
             # Check internet connection and attempt to sync
-            print("is_internet_connected()", is_internet_connected())
+            # print("is_internet_connected()", is_internet_connected())
             if is_internet_connected():
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
@@ -1755,12 +1756,12 @@ class ScreenShotQueue(threading.Thread):
                                 except Exception as e:
                                     logger.info(f"Error: {e}")
                             
-                            logger.info(f"record.ocr_text => {record.ocr_text}")
+                            # logger.info(f"record.ocr_text => {record.ocr_text}")
                             if not record.ocr_text:
-                                logger.info(f"record.file_path => {record.file_path}")
+                                # logger.info(f"record.file_path => {record.file_path}")
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}.png"
-                                logger.info(f"screenshot_file => {screenshot_file}")
+                                # logger.info(f"screenshot_file => {screenshot_file}")
 
                                 if not os.path.exists(screenshot_file):
                                     logger.warning(f"Screenshot file missing: {screenshot_file}")
@@ -1790,7 +1791,7 @@ class ScreenShotQueue(threading.Thread):
                                     if record.sync_status == 1:
                                         logger.info(f"dir => {dir(record)}")
                                         img_file_path = record.file_path
-                                        logger.info(f"img_file_path => {img_file_path}")
+                                        # logger.info(f"img_file_path => {img_file_path}")
                                         os.remove(img_file_path)
 
                                          # Delete the screenshot file
@@ -1808,7 +1809,7 @@ class ScreenShotQueue(threading.Thread):
                                         if record.sync_status == 1:
                                             logger.info(f"dir => {dir(record)}")
                                             img_file_path = record.file_path
-                                            logger.info(f"img_file_path => {img_file_path}")
+                                            # logger.info(f"img_file_path => {img_file_path}")
                                             os.remove(img_file_path)
                                             tmp_file_path, ext = os.path.splitext(img_file_path)
                                             screenshot_file = f"{tmp_file_path}.png"
