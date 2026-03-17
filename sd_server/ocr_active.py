@@ -87,7 +87,6 @@ class ActiveWindowOCRText:
                 try:
                     import torch
                     if torch.backends.mps.is_built() and torch.backends.mps.is_available():
-                        #logger.info("[OCRText] Torch MPS backend is available")
                         self._reader_cache = RapidOCR(params={
                             "Det.engine_type": EngineType.TORCH,
                             "Rec.engine_type": EngineType.TORCH,
@@ -99,7 +98,6 @@ class ActiveWindowOCRText:
 
                             "Rec.ocr_version": OCRVersion.PPOCRV5 ,
                         })
-                        #logger.info("[OCRText] Loaded OCR Engine: Torch (MPS / Apple Silicon)")
                         logger.info("[OCR] Backend: TORCH (MPS - Apple Silicon GPU)")
                         return self._reader_cache
                     else:
@@ -110,7 +108,6 @@ class ActiveWindowOCRText:
                         # )
                 except Exception as e:
                     print(e)
-                    #logger.warning(f"[OCRText] Apple Silicon detected, but Torch failed to load: {e}")
 
         # --- Intel-based MacBook from 2006 to 2021 (OpenVINO) ---
         if self.has_intel_cpu():
@@ -126,12 +123,10 @@ class ActiveWindowOCRText:
 
                         "Rec.ocr_version": OCRVersion.PPOCRV5 ,
                     })
-                    #logger.info("[OCRText] Loaded Engine: OpenVINO (Intel CPU)")
                     logger.info("[OCR] Backend: OPENVINO (Intel CPU)")
                     return self._reader_cache
                 except Exception as e:
                     print(e)
-                    #logger.warning(f"[OCRText] Intel CPU detected, but OpenVINO failed to load: {e}")
 
         # --- Others (ONNX Runtime) ---
         try:
