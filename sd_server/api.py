@@ -626,6 +626,8 @@ class ServerAPI:
             ocr_data = []
             ocr_text_json = json.loads(record.ocr_text)
             for data in ocr_text_json.get('data'):
+                if len(data.get('text')) == 1:
+                    continue 
                 ocr_data.append(data)
 
             # logger.info(f"orc_data => {ocr_data}")
