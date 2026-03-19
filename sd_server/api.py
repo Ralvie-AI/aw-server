@@ -605,17 +605,19 @@ class ServerAPI:
                 afk_dict["app"] = record.event.app
                 afk_dict["title"] = record.event.title
 
-            # logger.info(f"record.ocr_text => {record.ocr_text}")
-            # logger.info(f"record.ocr_text => {type(record.ocr_text)}")
-            # json_load_data = json.dumps(record.ocr_text)
-            # logger.info(f"record.ocr_text ocr => {json_load_data}")
-            # logger.info(f"record.ocr_text ocr => {type(json_load_data)}")
-
             ocr_data = []
             if record.ocr_text:
                 try:
                     ocr_text_json = json.loads(record.ocr_text)
-                    ocr_data = ocr_text_json.get("data", [])
+                    
+                    for data in ocr_text_json.get("data", []):
+                        text = data.get("text", "")
+                        
+                        if len(text) == 1:
+                            continue
+                        
+                        ocr_data.append(data)
+
                 except Exception as e:
                     logger.error(f"OCR JSON parse failed: {e}")
                     ocr_data = []
