@@ -67,6 +67,6 @@ def encrypt_image_to_json_gcm(image_path,associated_data, public_key_path="publi
         "version": "1.0"
     }
 
-    logger.info(f"[encrypt] Converted image to encrypted JSON. Image: {image_path}")
+    # logger.info(f"[encrypt] Converted image to encrypted JSON. Image: {image_path}")
 
     return json.dumps(encrypted_json, indent=4)
