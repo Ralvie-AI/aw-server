@@ -1772,7 +1772,7 @@ class ScreenShotQueue(threading.Thread):
 
                                 ocr_result = self.ocr.run_ocr(img_path=screenshot_file)
                                 logger.info(f'result => {ocr_result}')
-                                logger.info(f'result type=> {type(ocr_result)}')
+                                # logger.info(f'result type=> {type(ocr_result)}')
 
                                 if not isinstance(ocr_result, str):
                                     ocr_result = json.dumps(ocr_result)
@@ -1791,7 +1791,7 @@ class ScreenShotQueue(threading.Thread):
                                 if sync_result == "RCI0000":
                                     logger.info(f"record.sync_status after => {record.sync_status}")
                                     if record.sync_status == 1:
-                                        logger.info(f"dir => {dir(record)}")
+                                        # logger.info(f"dir => {dir(record)}")
                                         img_file_path = record.file_path
                                         # logger.info(f"img_file_path => {img_file_path}")
                                         os.remove(img_file_path)
@@ -1809,7 +1809,7 @@ class ScreenShotQueue(threading.Thread):
                                         logger.info(f"record.sync_status after => {record.sync_status}")
                                         logger.info(f"record.object_key after => {record.object_key}")
                                         if record.sync_status == 1:
-                                            logger.info(f"dir => {dir(record)}")
+                                            # logger.info(f"dir => {dir(record)}")
                                             img_file_path = record.file_path
                                             # logger.info(f"img_file_path => {img_file_path}")
                                             os.remove(img_file_path)
