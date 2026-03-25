@@ -11,7 +11,7 @@ from flask import (
 )
 from playhouse.shortcuts import model_to_dict
 
-from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
+from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm, validate_public_key_file
 from sd_qt.sd_desktop.util import (credentials)
 from sd_server.utils import get_uuid_address
 from sd_server.const import PUBLIC_KEY
@@ -54,7 +54,8 @@ def screenshot():
     associated_data = f"image_format={image_format},user_id={user_id},company_id={company_id},UUID={UUID}".encode('utf-8')
     public_key_file = PUBLIC_KEY.format(email=creds.get('email'), company_id=company_id)
 
-    if os.path.exists(public_key_file):
+    if os.path.exists(public_key_file) and validate_public_key_file(public_key_file):
+
         encrypted_data_json = encrypt_image_to_json_gcm(file_location, associated_data, public_key_path=public_key_file)
         file_path_without_ext, ext = os.path.splitext(file_location)
         json_file = f"{file_path_without_ext}.json"    
@@ -68,12 +69,6 @@ def screenshot():
             logger.info(f"Error: File not found at {e}")
         except Exception as e:
             logger.info(f"Error: {e}")
-
-        # logger.info(f"json file exists => {os.path.exists(json_file)}")
-        # logger.info(f"file_location exists => {os.path.exists(file_location)}")
-        # uncomment these lines to delete the image file
-        # if os.path.exists(json_file):
-        #     os.remove(file_location)   
         
         data = {
                 "event_id": event_id,
