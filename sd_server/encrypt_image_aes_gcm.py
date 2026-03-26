@@ -11,6 +11,34 @@ from cryptography.hazmat.backends import default_backend
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+def validate_public_key_file(path):    
+
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+
+    begin = "-----BEGIN PUBLIC KEY-----"
+    end = "-----END PUBLIC KEY-----"
+
+    if not content.startswith(begin):
+        return False
+
+    if end not in content:
+        return False
+
+    # Ensure nothing after END
+    after = content.split(end)[1].strip()
+    if after != "":
+        return False
+
+    # Validate base64
+    lines = content.splitlines()
+    b64_data = "".join(lines[1:-1])
+    base64.b64decode(b64_data)
+
+    # Validate crypto key
+    serialization.load_pem_public_key(content.encode())
+
+    return True
 
 def load_public_key(filename="public.pem"):
     with open(filename, "rb") as key_file:
