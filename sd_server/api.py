@@ -24,6 +24,7 @@ import requests as req
 from dateutil import parser
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+from tzlocal import get_localzone
 
 from sd_core.cache import cache_user_credentials
 from sd_core.cache import *
@@ -496,6 +497,9 @@ class ServerAPI:
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
                         return {"status": "No need to sync the event not more than 30 minute."}
                     
+                for data in events:                    
+                    data["clientTimeZone"] = str(get_localzone()) 
+
                 payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS"}
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
@@ -636,7 +640,8 @@ class ServerAPI:
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
-                        "ocrText": ocr_data
+                        "ocrText": ocr_data,
+                        "clientTimeZone": str(get_localzone()),
                         }
         
             # logger.info(f"payload info => {payload}")
@@ -701,6 +706,24 @@ class ServerAPI:
                 afk_dict["app"] = record.event.app
                 afk_dict["title"] = record.event.title
 
+            ocr_data = []
+            if record.ocr_text:
+                try:
+                    ocr_text_json = json.loads(record.ocr_text)
+                    
+                    for data in ocr_text_json.get("data", []):
+                        text = data.get("text", "")
+                        
+                        if len(text) == 1:
+                            continue
+                        
+                        ocr_data.append(data)
+
+                except Exception as e:
+                    logger.error(f"OCR JSON parse failed: {e}")
+                    ocr_data = []
+
+
             payload = {"userId": userId, 
                         "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -711,6 +734,8 @@ class ServerAPI:
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
+                        "ocrText": ocr_data,
+                        "clientTimeZone": str(get_localzone()),
                         }
 
             # logger.info(f"payload info => {payload}")
