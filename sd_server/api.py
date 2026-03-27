@@ -24,6 +24,7 @@ from dateutil import parser
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+from tzlocal import get_localzone
 
 from sd_core.cache import cache_user_credentials
 from sd_core.cache import *
@@ -498,10 +499,14 @@ class ServerAPI:
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
                         # logger.info(f"No need to sync the event to the server.")
                         return {"status": "No need to sync the event not more than 30 minute."}
-
+                    
+                for data in events:                    
+                    data["clientTimeZone"] = str(get_localzone()) 
+                    
                 payload = {"userId": userId, "companyId": companyId, "events": events}
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
+                # logger.info(f"payload => {payload}")
                 event_ids = [obj['event_id'] for obj in events]
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
@@ -643,7 +648,8 @@ class ServerAPI:
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": screenshot_capture_time,
-                        "ocrText": ocr_data
+                        "ocrText": ocr_data,
+                        "clientTimeZone": str(get_localzone()),
                         }
 
             # logger.info(f"payload info => {payload}")
@@ -706,6 +712,13 @@ class ServerAPI:
                 afk_dict["app"] = record.event.app
                 afk_dict["title"] = record.event.title
 
+            ocr_data = []
+            ocr_text_json = json.loads(record.ocr_text)
+            for data in ocr_text_json.get('data'):
+                if len(data.get('text')) == 1:
+                    continue 
+                ocr_data.append(data)
+
             screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)   
 
             payload = {"userId": userId, 
@@ -718,6 +731,8 @@ class ServerAPI:
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": screenshot_capture_time,
+                        "ocrText": ocr_data,
+                        "clientTimeZone": str(get_localzone()),
                         }
 
             # logger.info(f"payload info => {payload}")
