@@ -358,7 +358,7 @@ def get_running_path():
         return os.path.dirname(os.path.abspath(__file__))
 
 def _task_runner(exec_cmd, timeout_sec):
-    # logger.info(f"Starting module {exec_cmd}")
+    logger.info(f"Starting module {exec_cmd}")
     if not isinstance(exec_cmd, list):
         exec_cmd = [exec_cmd]
 

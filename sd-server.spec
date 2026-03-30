@@ -3,6 +3,9 @@
 
 import os
 
+#from PyInstaller.utils.hooks.collect import collect_metadata
+from PyInstaller.utils.hooks import copy_metadata
+
 import sd_core
 sd_core_path = os.path.dirname(sd_core.__file__)
 
@@ -11,6 +14,7 @@ restx_path = os.path.dirname(flask_restx.__file__)
 
 block_cipher = None
 
+datass = copy_metadata('flask') + copy_metadata('flask-restx')
 
 a = Analysis(['__main__.py'],
              pathex=[],
@@ -20,7 +24,7 @@ a = Analysis(['__main__.py'],
                 (os.path.join(restx_path, 'static'), 'flask_restx/static'),
                 (os.path.join(sd_core_path, 'schemas'), 'sd_core/schemas'),
                 ("sd_server/static", "sd_server/static")
-             ],
+             ] + datass,
             hiddenimports=[
             'reportlab',
             'reportlab.graphics',
@@ -34,7 +38,7 @@ a = Analysis(['__main__.py'],
             'reportlab.graphics.barcode.code39',
             'reportlab.graphics.barcode.usps',
             'reportlab.graphics.barcode.usps4s',
-            'reportlab.graphics.barcode.ecc200datamatrix',
+            'reportlab.graphics.barcode.ecc200datamatrix',            
             ],
              hookspath=[],
              runtime_hooks=[],
@@ -48,6 +52,7 @@ exe = EXE(pyz,
           a.scripts,
           exclude_binaries=True,
           name='sd-server',
+          contents_directory=".",
           debug=False,
           strip=False,
           upx=True,

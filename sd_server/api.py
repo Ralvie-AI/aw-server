@@ -1733,7 +1733,7 @@ class ScreenShotQueue(threading.Thread):
                                 # logger.info(f"screenshot_file => {screenshot_file}")
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
                                 file_location = get_running_path()
-                                sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity/sd-ocr-activity.exe")   
+                                sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity.exe")   
                                 command_list = [             
                                         sd_ocr_activity_exe,                          
                                         "--server_url", server_url,

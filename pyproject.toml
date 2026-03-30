@@ -25,17 +25,20 @@ tzlocal="*"
 xhtml2pdf="*"
 reportlab="*"
 python-dateutil = "^2.9.0.post0"
+psutil = ">=4.0"
 
-[tool.poetry.dev-dependencies]
-mypy = "*"
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.0"
 pytest = "^7.3"
 pytest-flask = "*"
 pytest-benchmark = "*"
 pytest-cov = "*"
 types-Werkzeug = "*"
-types-pkg-resources = "*"
 types-Flask = "*"
+# Replacement for types-pkg-resources:
+types-setuptools = "*" 
 black = "^23.3.0"
+
 
 [tool.pytest.ini_options]
 minversion = "6.0"
