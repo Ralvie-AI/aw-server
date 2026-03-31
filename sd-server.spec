@@ -15,7 +15,7 @@ restx_path = os.path.dirname(flask_restx.__file__)
 block_cipher = None
 
 datass = copy_metadata('flask') + copy_metadata('flask-restx')
-
+#'charset_normalizer',  
 a = Analysis(['__main__.py'],
              pathex=[],
              binaries=None,
@@ -38,11 +38,24 @@ a = Analysis(['__main__.py'],
             'reportlab.graphics.barcode.code39',
             'reportlab.graphics.barcode.usps',
             'reportlab.graphics.barcode.usps4s',
-            'reportlab.graphics.barcode.ecc200datamatrix',            
+            'reportlab.graphics.barcode.ecc200datamatrix',              
             ],
              hookspath=[],
              runtime_hooks=[],
-             excludes=[],
+             excludes=[
+               'PySide6.QtWebChannel', 
+               'PySide6.QtWebEngineCore', 
+               'PySide6.QtWebEngineWidgets',
+               'PySide6.QtWebContext',
+               'PySide6.QtNetwork',
+               'PySide6.QtCore',
+               'PySide6.QtGui',
+               'PySide6.QtSvg',
+               'PySide6.QtWidgets',
+               'PySide6.QtSvg',
+               'PySide6.QtQuick',
+               'PySide6.QtQml',
+            ],
              win_no_prefer_redirects=False,
              win_private_assemblies=False,
              cipher=block_cipher)

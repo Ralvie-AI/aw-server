@@ -22,8 +22,6 @@ pyjwt="*"
 pdfkit="*"
 xlsxwriter="*"
 tzlocal="*"
-xhtml2pdf="*"
-reportlab="*"
 python-dateutil = "^2.9.0.post0"
 psutil = ">=4.0"
 

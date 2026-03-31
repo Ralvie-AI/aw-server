@@ -13,7 +13,7 @@ from playhouse.shortcuts import model_to_dict
 
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm, validate_public_key_file
 from sd_qt.sd_desktop.util import (credentials)
-from sd_server.utils import get_uuid_address
+from sd_core.system_uuid import get_uuid_address
 from sd_server.const import PUBLIC_KEY
 
 logger = logging.getLogger(__name__)
