@@ -521,8 +521,7 @@ class ServerAPI:
                         failed_event_ids = set()
 
                         logger.info(f"is_failed_event 1 => {is_failed_event}")
-                        logger.info(f"is_failed_event 1 => {is_failed_event}")
-
+                        
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                         threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
                         threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
@@ -1699,7 +1698,7 @@ class ScreenShotQueue(threading.Thread):
                     self._try_connect()
                 print("self.connected ", self.connected)
                 if self.connected:
-                    logger.info("Connected to internet. Attempting to sync screenshot.")
+                    # logger.info("Connected to internet. Attempting to sync screenshot.")
                     response_code = None
                     try:
                         # logger.info(f"self.server.db.get_screenshot_record() length => {len(self.server.db.get_screenshot_record())}")
@@ -1738,13 +1737,12 @@ class ScreenShotQueue(threading.Thread):
                                     logger.info(f"Error: File not found at {e}")
                                 except Exception as e:
                                     logger.info(f"Error: {e}")
-
                             
-                            # logger.info(f"record.ocr_text => {record.ocr_text}")
-                            if not record.ocr_text:
+                            
+                            if not record.ocr_text:                                
                                 # logger.info(f"record.file_path => {record.file_path}")
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
-                                screenshot_file = f"{tmp_file_path}.png"
+                                screenshot_file = f"{tmp_file_path}_ocr.png"
                                 # logger.info(f"screenshot_file => {screenshot_file}")
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
                                 file_location = get_running_path()
@@ -1762,7 +1760,9 @@ class ScreenShotQueue(threading.Thread):
                                 # logger.info(f'result type=> {type(ocr_result)}')
                                 # self.server.db.update_ocr_text(record.id, ocr_result)
                                 break
-                            
+
+                            logger.info(f"record.ocr_text => {record.ocr_text}")
+
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
                                 response_code = REJECTED_SYNC_STATUS
@@ -1782,7 +1782,9 @@ class ScreenShotQueue(threading.Thread):
                                         # Delete the screenshot file
                                         tmp_file_path, ext = os.path.splitext(img_file_path)
                                         screenshot_file = f"{tmp_file_path}.png"
+                                        screenshot_file_ocr = f"{tmp_file_path}_ocr.png"
                                         os.remove(screenshot_file)
+                                        os.remove(screenshot_file_ocr)
                                         record.delete_instance()
                             else:
                                 if record.object_key:
@@ -1798,7 +1800,9 @@ class ScreenShotQueue(threading.Thread):
                                             os.remove(img_file_path)
                                             tmp_file_path, ext = os.path.splitext(img_file_path)
                                             screenshot_file = f"{tmp_file_path}.png"
+                                            screenshot_file_ocr = f"{tmp_file_path}_ocr.png"
                                             os.remove(screenshot_file)
+                                            os.remove(screenshot_file_ocr)                                            
                                             record.delete_instance()
 
                         if response_code == REJECTED_SYNC_STATUS:
@@ -1810,9 +1814,11 @@ class ScreenShotQueue(threading.Thread):
                             for record in self.server.db.get_screenshot_record():
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}.png"
+                                screenshot_file_ocr = f"{tmp_file_path}_ocr.png"
                                 if os.path.exists(screenshot_file):
                                     logger.info(f"delete screenshot file {screenshot_file}")
                                     os.remove(screenshot_file)
+                                    os.remove(screenshot_file_ocr)
                                 if os.path.exists(record.file_path):
                                     logger.info(f"delete record.file_path {record.file_path}")
                                     os.remove(record.file_path)
