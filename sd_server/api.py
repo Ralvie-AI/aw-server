@@ -504,9 +504,10 @@ class ServerAPI:
                     data["clientTimeZone"] = str(get_localzone()) 
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events}
+                logger.info(f"payload => {payload}")
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
-                # logger.info(f"payload => {payload}")
+                
                 event_ids = [obj['event_id'] for obj in events]
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
@@ -649,9 +650,10 @@ class ServerAPI:
                         "screenshotCaptureTime": screenshot_capture_time,
                         "ocrText": ocr_data,
                         "clientTimeZone": str(get_localzone()),
+                        "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
 
-            # logger.info(f"payload info => {payload}")
+            logger.info(f"payload info => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
@@ -1550,12 +1552,12 @@ class RalvieServerQueue(threading.Thread):
 
         while not self.should_stop():
             # Check internet connection and attempt to sync
-            print("is_internet_connected()", is_internet_connected())
+            # print("is_internet_connected()", is_internet_connected())
             if is_internet_connected():
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
                     self._try_connect()
-                print("self.connected ", self.connected)
+                # print("self.connected ", self.connected)
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync events.")
                     try:
@@ -1646,7 +1648,7 @@ class ScreenShotQueue(threading.Thread):
             try:
                 res = requests.put(url_path)
                 data = res.json()
-                print("data", data)
+                # print("data", data)
                 logging.info(f"Upload failed with status code: {data.get('code')}")
                 logging.info(f"Url to download: {data.get('data').get('url')}")
                 break
@@ -1696,7 +1698,7 @@ class ScreenShotQueue(threading.Thread):
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
                     self._try_connect()
-                print("self.connected ", self.connected)
+                # print("self.connected ", self.connected)
                 if self.connected:
                     # logger.info("Connected to internet. Attempting to sync screenshot.")
                     response_code = None
