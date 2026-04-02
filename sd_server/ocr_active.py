@@ -135,7 +135,7 @@ class ActiveWindowOCRText:
                 "Rec.ocr_version": OCRVersion.PPOCRV5 ,
                 })
             #logger.info("[OCRText] Loaded Engine: ONNX Runtime")
-            logger.info("[OCR] Backend: ONNX Runtime (CPU)")
+            # logger.info("[OCR] Backend: ONNX Runtime (CPU)")
             return self._reader_cache
         except Exception as e:
             logger.exception(f"[OCRText] ONNX Runtime backend failed to load: {e}")
@@ -206,6 +206,7 @@ class ActiveWindowOCRText:
             }
 
         return json_output
+    
 
 if __name__ == "__main__":
     ocr = ActiveWindowOCRText(warmup=True)
