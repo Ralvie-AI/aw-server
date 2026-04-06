@@ -24,6 +24,7 @@ xlsxwriter="*"
 tzlocal="*"
 python-dateutil = "^2.9.0.post0"
 psutil = ">=4.0"
+charset-normalizer = "3.4.7"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.0"
