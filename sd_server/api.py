@@ -467,9 +467,9 @@ class ServerAPI:
     def sync_events_to_ralvie(self):
         try:
             userId = load_key("userId")
-            logger.info(f"User ID from load_key: {userId}")
+            # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
-            logger.info(f"cached_credentials: {cached_credentials}")
+            # logger.info(f"cached_credentials: {cached_credentials}")
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
             companyId = cached_credentials.get('companyId')
@@ -487,12 +487,12 @@ class ServerAPI:
             if events:
                 if len(events) == 1:
                     current_now = datetime.now(timezone.utc)
-                    logger.info(f"current_now {current_now}")
+                    # logger.info(f"current_now {current_now}")
                     event = events[0]
                     timestamp = parser.isoparse(event["timestamp"])
-                    logger.info(f"timestamp {timestamp}")
+                    # logger.info(f"timestamp {timestamp}")
                     result = (current_now - timestamp).total_seconds()
-                    logger.info(f"result {result}")
+                    # logger.info(f"result {result}")
         
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
                         return {"status": "No need to sync the event not more than 30 minute."}
@@ -642,6 +642,7 @@ class ServerAPI:
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
                         "ocrText": ocr_data,
                         "clientTimeZone": str(get_localzone()),
+                        "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
         
             # logger.info(f"payload info => {payload}")
@@ -684,7 +685,7 @@ class ServerAPI:
 
             json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
-            logger.info(f"User ID from load_key: {userId}")
+            # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
@@ -736,6 +737,7 @@ class ServerAPI:
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
                         "ocrText": ocr_data,
                         "clientTimeZone": str(get_localzone()),
+                        "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
 
             # logger.info(f"payload info => {payload}")
@@ -1745,10 +1747,11 @@ class ScreenShotQueue(threading.Thread):
 
 
                 if self.connected:
-                    logger.info("Connected to internet. Attempting to sync screenshot.")
+                    # logger.info("Connected to internet. Attempting to sync screenshot.")
                     response_code = None
                     try:
                         for record in self.server.db.get_screenshot_record():
+                            # logger.info(f"[DEBUG] Found record: {record.file_path}")
                             # check if record.file_path file type is png
                             # it means there was no public key file found for encrypting the json file
                             tmp_file, ext = os.path.splitext(record.file_path)
@@ -1787,15 +1790,20 @@ class ScreenShotQueue(threading.Thread):
                             if not record.ocr_text:
                                 # logger.info(f"record.file_path => {record.file_path}")
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
-                                screenshot_file = f"{tmp_file_path}.png"
+                                # screenshot_file = f"{tmp_file_path}.png"
+                                # use active image
+                                active_file = f"{tmp_file_path}_active.png"
+                                # logger.info(f"[OCR] active_file => {active_file}")
+                                # logger.info(f"[OCR] exists => {os.path.exists(active_file)}")
+                                
                                 # logger.info(f"screenshot_file => {screenshot_file}")
 
-                                if not os.path.exists(screenshot_file):
-                                    logger.warning(f"Screenshot file missing: {screenshot_file}")
+                                if not os.path.exists(active_file):
+                                    logger.warning(f"Screenshot file missing: {active_file}")
                                     record.delete_instance()
                                     continue   
 
-                                ocr_result = self.ocr.run_ocr(img_path=screenshot_file)
+                                ocr_result = self.ocr.run_ocr(img_path=active_file)
                                 logger.info(f'result => {ocr_result}')
                                 # logger.info(f'result type=> {type(ocr_result)}')
 
@@ -1814,7 +1822,7 @@ class ScreenShotQueue(threading.Thread):
                                 sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)
                                 logger.info(f"result url => {sync_result}")
                                 if sync_result == "RCI0000":
-                                    logger.info(f"record.sync_status after => {record.sync_status}")
+                                    # logger.info(f"record.sync_status after => {record.sync_status}")
                                     if record.sync_status == 1:
                                         # logger.info(f"dir => {dir(record)}")
                                         img_file_path = record.file_path
@@ -1823,16 +1831,25 @@ class ScreenShotQueue(threading.Thread):
 
                                          # Delete the screenshot file
                                         tmp_file_path, ext = os.path.splitext(img_file_path)
-                                        screenshot_file = f"{tmp_file_path}.png"
-                                        os.remove(screenshot_file)
+                                        # screenshot_file = f"{tmp_file_path}.png"
+                                        # os.remove(screenshot_file)
+                                        full_file = f"{tmp_file_path}.png"
+                                        active_file = f"{tmp_file_path}_active.png"
+
+                                        if os.path.exists(full_file):
+                                            os.remove(full_file)
+
+                                        if os.path.exists(active_file):
+                                            os.remove(active_file)
+                                    
                                         record.delete_instance()
                             else:
                                 if record.object_key:
                                     sync_result = self.server.retry_sync_screenshot_to_ralvie(record.object_key, record)
                                     logger.info(f"result url => {sync_result}")
                                     if sync_result == "RCI0000":
-                                        logger.info(f"record.sync_status after => {record.sync_status}")
-                                        logger.info(f"record.object_key after => {record.object_key}")
+                                        # logger.info(f"record.sync_status after => {record.sync_status}")
+                                        # logger.info(f"record.object_key after => {record.object_key}")
                                         if record.sync_status == 1:
                                             # logger.info(f"dir => {dir(record)}")
                                             img_file_path = record.file_path
