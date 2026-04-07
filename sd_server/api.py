@@ -1647,7 +1647,7 @@ class ScreenShotQueue(threading.Thread):
     def get_pre_signed_url(self):
         result = None, None, None
         userId = load_key("userId")
-        logger.info(f"User ID from load_key get_pre_signed_url: {userId}")
+        # logger.info(f"User ID from load_key get_pre_signed_url: {userId}")
         cached_credentials = get_credentials(CACHE_KEY)
 
         if cached_credentials is None:
