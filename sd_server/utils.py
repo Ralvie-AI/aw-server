@@ -130,7 +130,7 @@ def get_uuid_address(email=None, system_uuid=None):
         return encrypt_system_uuid(system_uuid, lowercase_password)
 
     key_item_exists = keychain_item_exists(CACHE_KEY)
-    logger.info(f"Getting max address key_item_exists {key_item_exists}")
+    # logger.info(f"Getting max address key_item_exists {key_item_exists}")
     if key_item_exists:
         items = get_password(CACHE_KEY)
         if items:
