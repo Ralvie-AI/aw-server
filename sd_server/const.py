@@ -12,9 +12,6 @@ HOST_PRO = 'me.ralvie.ai'
 
 GITHUB_COMMIT_ID="main/windows_7f18343"
 
-PUBLIC_KEY = os.path.join(os.environ['LOCALAPPDATA'], 'Sundial', 'Sundial', 'sd-server', '{email}-{company_id}-public.pem')
-
-
 if DEVELOPMENT_MODE == 0:
     if STAGING == 1:
         HOST = HOST_DEV
