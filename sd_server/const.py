@@ -1,12 +1,6 @@
 import os 
 
-# DEVELOPMENT_MODE = 0 is for local development.
-# DEVELOPMENT_MODE = 1 is for production.
-
-
-DEVELOPMENT_MODE = 1
-STAGING = 1
-LOGGING_VERBOSE = 0
+from sd_core.const import DEVELOPMENT_MODE, STAGING
 
 PROTOCOL = "https"
 
@@ -31,9 +25,6 @@ else:
         HOST = HOST_DEV
     else:
         HOST = HOST_PRO
-
-CACHE_KEY = "Sundial"
-
 
 
 ##### RESPONSE CODE FROM RALVRCI0000IE SERVER #####

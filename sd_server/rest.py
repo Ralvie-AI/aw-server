@@ -22,6 +22,7 @@ from flask import (
 
 from sd_core.launch_start import delete_launch_app, launch_app, set_autostart_registry
 from sd_core.util import authenticate, is_internet_connected, reset_user
+from sd_core.const import DEVELOPMENT_MODE
 from sd_core import schema, db_cache
 from sd_core.models import Event
 from sd_core.cache import *
@@ -30,7 +31,6 @@ from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
 from sd_qt.manager import Manager
-from sd_server.const import DEVELOPMENT_MODE
 
 application_cache_key = "application_cache"
 manager = Manager()
