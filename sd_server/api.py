@@ -35,22 +35,18 @@ from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
 from sd_core.models import Event
+from sd_core.os_util import send_to_gui
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import (send_to_gui, stop_process_by_exe, convert_datetime_string,)
+from sd_server.utils import (stop_process_by_exe, convert_datetime_string)
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
                              PROTOCOL, HOST, SCREEN_SHOT_SYNC_TIME)
-
-
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
-from sd_qt.sd_desktop.util import (credentials)
-
 
 HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
 
 MAX_RETRIES = 3
 DELAY_SECONDS = 3  # wait before retry
-
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -215,6 +211,19 @@ class ServerAPI:
 
     def application_list(self):
         return self.db.retrieve_application_names()
+    
+    def _build_headers(self, user_name=None, additional_headers=None):
+        max_address = hex(uuid.getnode())
+        uuid_address = get_uuid_address(user_name) if user_name else get_uuid_address()
+        headers = {
+            "Content-type": "application/json",
+            "charset": "utf-8",
+            "X-SUNDIAL-MAC-ADDRESS": max_address,
+            "X-SUNDIAL-UUID": uuid_address
+        }
+        if additional_headers:
+            headers.update(additional_headers)
+        return headers
 
     def _url(self, endpoint: str):
         """
@@ -236,19 +245,14 @@ class ServerAPI:
 
          @return A : class : ` Response `
         """
-        max_address = hex(uuid.getnode())
-        uuid_address = get_uuid_address()
-        headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
-                    "X-SUNDIAL-UUID": uuid_address}
-        # Update the headers with the params.
+        headers = dict()
         if params:
             headers.update(params)
-        return req.get(self._url(endpoint), headers=headers)
-
+        logger.info(f"_get => {self._build_headers(additional_headers=headers)}")
+        return req.get(self._url(endpoint), headers=self._build_headers(additional_headers=headers))
         
     @always_raise_for_request_errors
     def _post(
-
         self,
         endpoint: str,
         data: Union[List[Any], Dict[str, Any]],
@@ -263,19 +267,10 @@ class ServerAPI:
 
          @return The response from the request as a : class : ` req. Response `
         """
-        max_address = hex(uuid.getnode())
-        if data.get('userName'):
-            uuid_address = get_uuid_address(data.get('userName'))
-            logger.info(f"uuid_address  {uuid_address}")
-            # logger.info(f"uuid_address email   {data.get('userName')}")
-        else:
-            uuid_address = get_uuid_address()
-            logger.info(f"no email param uuid_address  {uuid_address}")
-
-        if max_address:
-            headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
-                       "X-SUNDIAL-UUID": uuid_address}   
-
+        user_name = None 
+        headers = dict()
+        if data.get("userName"):
+            user_name = data.get("userName")
 
         # Update the headers with the params.
         if params:
@@ -285,12 +280,14 @@ class ServerAPI:
             headers.update({"accept-language": data.get('accept-language')})
         # logger.info(f"data => {data}")
         # logger.info(f"json dumps data => {json.dumps(data)}")
+
+        logger.info(f"_post => {self._build_headers(user_name=user_name, additional_headers=headers)}")
         if 'timeout' in data:
             timeout = data.pop("timeout")
             return req.post(
                 self._url(endpoint),
                 data=bytes(json.dumps(data), "utf8"),
-                headers=headers,
+                headers=self._build_headers(user_name=user_name, additional_headers=headers),
                 params=params,
                 timeout=timeout,
             )
@@ -298,13 +295,12 @@ class ServerAPI:
             return req.post(
                 self._url(endpoint),
                 data=bytes(json.dumps(data), "utf8"),
-                headers=headers,
+                headers=self._build_headers(user_name=user_name, additional_headers=headers),
                 params=params,
             )
 
     @always_raise_for_request_errors
     def _put(
-
         self,
         endpoint: str,
         data: Union[List[Any], Dict[str, Any]],
@@ -318,23 +314,18 @@ class ServerAPI:
          @param params - A dictionary of headers to add to the request.
 
          @return The response from the request as a : class : ` req. Response `
-        """
-        max_address = hex(uuid.getnode())
-        uuid_address = get_uuid_address()
-        if max_address:
-            headers = {"Content-type": "application/json", "charset": "utf-8", "X-SUNDIAL-MAC-ADDRESS": max_address,
-                       "X-SUNDIAL-UUID": uuid_address}
+        """        
         # Update the headers with the params.
+        headers = dict()
         if params:
             headers.update(params)
+        logger.info(f"_put => {self._build_headers(additional_headers=headers)}")
         return req.put(
             self._url(endpoint),
             data=bytes(json.dumps(data), "utf8"),
-            headers=headers,
+            headers=self._build_headers(additional_headers=headers),
             params=params,
         )
-
-
 
     @always_raise_for_request_errors
     def _put_with_file(
@@ -351,19 +342,20 @@ class ServerAPI:
          @param params - A dictionary of headers to add to the request.
 
          @return The response from the request as a : class : ` req. Response `
-        """
-        max_address = hex(uuid.getnode())
-        uuid_address = get_uuid_address()
-        if uuid_address:
-            headers = {"X-SUNDIAL-MAC-ADDRESS": max_address, "X-SUNDIAL-UUID": uuid_address}
+        """        
         payload = {}
+        headers = dict()
         # Update the headers with the params.
         if params:
             headers.update(params)
         files = {'file': (file.filename, file.stream, file.content_type)}
+
+        logger.info(f"_put_with_file => {self._build_headers(additional_headers=headers)}")
         return req.put(
             self._url(endpoint),
-            headers=headers, data=payload, files=files,
+            headers=self._build_headers(additional_headers=headers),
+            data=payload, 
+            files=files,
         )
 
     @always_raise_for_request_errors
@@ -377,14 +369,14 @@ class ServerAPI:
 
          @return A : class : ` req. Response ` object
         """        
-        uuid_address = get_uuid_address()
-        max_address = hex(uuid.getnode())
-        if uuid_address:
-            headers = {"Content-type": "application/json", "X-SUNDIAL-MAC-ADDRESS": max_address, "X-SUNDIAL-UUID": uuid_address}
-
+        headers = dict()
         if params:
             headers.update(params)
-        return req.delete(self._url(endpoint), data=json.dumps(data), headers=headers)
+
+        logger.info(f"_delete => {self._build_headers(additional_headers=headers)}")
+        return req.delete(self._url(endpoint), 
+                          data=json.dumps(data), 
+                          headers=self._build_headers(additional_headers=headers))
 
 
     def init_db(self) -> bool:
@@ -414,9 +406,7 @@ class ServerAPI:
          @param user - The user to authorize. See API docs for more information.
 
          @return The response from the server. If there was an error the response will contain the error
-        """
-        
-        
+        """        
         endpoint = f"/api/v1/users/authorize"
         return self._post(endpoint , user)
 
@@ -1012,7 +1002,6 @@ class ServerAPI:
             self.import_bucket(bucket)
 
     def create_bucket(
-
         self,
         bucket_id: str,
         event_type: str,
@@ -1055,7 +1044,6 @@ class ServerAPI:
 
     @check_bucket_exists
     def update_bucket(
-
         self,
         bucket_id: str,
         event_type: Optional[str] = None,
@@ -1152,7 +1140,6 @@ class ServerAPI:
 
     @check_bucket_exists
     def get_eventcount(
-
         self,
         bucket_id: str,
         start: Optional[datetime] = None,
@@ -1445,9 +1432,6 @@ def datetime_serializer(obj):
     # Return the ISO 8601 format of the object.
     if isinstance(obj, datetime):
         return obj.isoformat()
-
-
-
 
 def event_filter(most_used_apps,data):
     """

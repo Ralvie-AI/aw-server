@@ -3,34 +3,11 @@ import logging
 import time
 from datetime import datetime
 
-import win32file
-import pywintypes
-
 from sd_core.const import DEVELOPMENT_MODE, LOGGING_VERBOSE
 
 logger = logging.getLogger(__name__)
 
-PIPE_NAME = r'\\.\pipe\AppSocket'
 
-def send_to_gui(msg: str):
-    try:
-        handle = win32file.CreateFile(
-            PIPE_NAME,
-            win32file.GENERIC_WRITE,
-            0,  # No sharing
-            None,
-            win32file.OPEN_EXISTING,
-            0,
-            None
-        )
-        win32file.WriteFile(handle, msg.encode())
-        win32file.CloseHandle(handle)
-        return True
-    except pywintypes.error as e:
-        print(f"[ERROR] Could not send: {e}")
-        return False
-   
-    
 def stop_process_by_exe(exe_name, time_sleep=0.2):
     if DEVELOPMENT_MODE == LOGGING_VERBOSE:
         logger.info(f"killing start cmd_name {exe_name}")   
