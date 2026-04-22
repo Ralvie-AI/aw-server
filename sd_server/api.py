@@ -248,7 +248,7 @@ class ServerAPI:
         headers = dict()
         if params:
             headers.update(params)
-        logger.info(f"_get => {self._build_headers(additional_headers=headers)}")
+        # logger.info(f"_get => {self._build_headers(additional_headers=headers)}")
         return req.get(self._url(endpoint), headers=self._build_headers(additional_headers=headers))
         
     @always_raise_for_request_errors
@@ -278,10 +278,8 @@ class ServerAPI:
 
         if "accept-language" in data:
             headers.update({"accept-language": data.get('accept-language')})
-        # logger.info(f"data => {data}")
-        # logger.info(f"json dumps data => {json.dumps(data)}")
-
-        logger.info(f"_post => {self._build_headers(user_name=user_name, additional_headers=headers)}")
+        
+        # logger.info(f"_post => {self._build_headers(user_name=user_name, additional_headers=headers)}")
         if 'timeout' in data:
             timeout = data.pop("timeout")
             return req.post(
@@ -458,7 +456,7 @@ class ServerAPI:
 
         try:
             userId = load_key("userId")
-            logger.info(f"User ID from load_key: {userId}")
+            # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
@@ -682,7 +680,7 @@ class ServerAPI:
 
             json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
-            logger.info(f"User ID from load_key: {userId}")
+            # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
