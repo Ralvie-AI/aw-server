@@ -1,6 +1,7 @@
 import os 
 
 from sd_core.const import DEVELOPMENT_MODE, STAGING, CONFIG_SERVER
+from sd_server.version import GIT_COMMIT
 
 PROTOCOL = "https"
 
@@ -10,7 +11,9 @@ SCREEN_SHOT_SYNC_TIME = 60 # 1  minutes
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
 
-GITHUB_COMMIT_ID="main/windows_7f18343"
+
+
+GITHUB_COMMIT_ID=f"main/windows_{GIT_COMMIT}"
 
 if DEVELOPMENT_MODE == 0:
     if STAGING == 1:
