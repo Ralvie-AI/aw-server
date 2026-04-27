@@ -24,7 +24,7 @@ from flask import (
 
 from sd_core.launch_start import delete_launch_app, launch_app, set_autostart_registry
 from sd_core.util import authenticate, is_internet_connected, reset_user
-from sd_core.const import DEVELOPMENT_MODE, CACHE_KEY
+from sd_core.const import DEVELOPMENT_MODE, CACHE_KEY, SETTINGS_CACHE_KEY
 from sd_core import schema, db_cache
 from sd_core.models import Event
 from sd_core.cache import cache_user_credentials
@@ -753,10 +753,10 @@ class HeartbeatResource(Resource):
             heartbeat_data['data']['app'] = f"{heartbeat_data['data']['title']}.exe"
 
         # Retrieve settings
-        settings = db_cache.retrieve("settings_cache")
+        settings = db_cache.retrieve(SETTINGS_CACHE_KEY)
         if not settings:
             settings = current_app.api.retrieve_all_settings()
-            db_cache.store("settings_cache", settings)
+            db_cache.store(SETTINGS_CACHE_KEY, settings)
 
         # Extract the weekdays schedule
         weekdays_schedule = settings.get("weekdays_schedule", {})
@@ -1037,11 +1037,11 @@ class GetAllSettings(Resource):
         """
         Get settings. This is a GET request to /0/getsettings/{code}.
         """
-        settings_dict = db_cache.cache_data("settings_cache")
+        settings_dict = db_cache.cache_data(SETTINGS_CACHE_KEY)
         if settings_dict is None:
             db_cache.cache_data(
-                "settings_cache", current_app.api.retrieve_all_settings())
-            settings_dict = db_cache.cache_data("settings_cache")
+                SETTINGS_CACHE_KEY, current_app.api.retrieve_all_settings())
+            settings_dict = db_cache.cache_data(SETTINGS_CACHE_KEY)
 
         return settings_dict
 
@@ -1054,11 +1054,11 @@ class GetSchedule(Resource):
         """
         Get settings. This is a GET request to /0/getsettings/{code}.
         """
-        settings_dict = db_cache.cache_data("settings_cache")
+        settings_dict = db_cache.cache_data(SETTINGS_CACHE_KEY)
         if settings_dict is None:
             db_cache.cache_data(
-                "settings_cache", current_app.api.retrieve_all_settings())
-            settings_dict = db_cache.cache_data("settings_cache")
+                SETTINGS_CACHE_KEY, current_app.api.retrieve_all_settings())
+            settings_dict = db_cache.cache_data(SETTINGS_CACHE_KEY)
         return json.loads(settings_dict["weekdays_schedule"]), 200
 
 
