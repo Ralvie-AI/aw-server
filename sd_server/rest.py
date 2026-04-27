@@ -2,6 +2,7 @@ import sys
 import getpass
 import json
 import traceback
+import platform
 from functools import wraps
 from threading import Lock
 from typing import Dict
@@ -26,7 +27,7 @@ from sd_core.util import authenticate, is_internet_connected, reset_user
 from sd_core.const import DEVELOPMENT_MODE, CACHE_KEY
 from sd_core import schema, db_cache
 from sd_core.models import Event
-from sd_core.cache import *
+from sd_core.cache import cache_user_credentials
 from sd_query.exceptions import QueryException
 from . import logger
 from .api import ServerAPI

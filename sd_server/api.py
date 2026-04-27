@@ -26,8 +26,8 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
 
-from sd_core.cache import cache_user_credentials
-from sd_core.cache import *
+from sd_core.cache import (cache_user_credentials, get_credentials, clear_credentials, delete_password,
+                           add_password, store_credentials, credentials)
 from sd_core.util import (encrypt_uuid, load_key, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
 from sd_core.const import CACHE_KEY, PUBLIC_KEY
