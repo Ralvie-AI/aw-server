@@ -33,41 +33,15 @@ REJECTED_SYNC_STATUS = "RCE0219" # server rejected these events
 NO_USER_FOUND = "RCE0039" # User does not exist
 
 if CONFIG_SERVER == 1:
-    import os
-    import logging
-    import configparser
+    import logging    
     from sd_core.dirs import get_data_dir
+    from sd_core.util import read_config, write_config
     file_path = get_data_dir("sd-server")
     config_file_path = os.path.join(file_path, "server_config.ini")
-
-
-    logger = logging.getLogger(__name__)
-
-    def read_config(name: str):
-        if os.path.isfile(config_file_path):
-            config = configparser.ConfigParser()
-            config.read(config_file_path)
-            try:
-                return config.get(name, 'protocol'), config.get(name, 'host')
-            except Exception as e:
-                logger.error(f"Error reading lang for {name}: {e}")
-                return None, None
-        return None, None
-        
-    def write_config(name: str, protocol: str, host: str):
-            config = configparser.ConfigParser()
-            config.read(config_file_path)
-            # Add a section to the config if it doesn t already exist.
-            if not config.has_section(name):
-                config.add_section(name)
-
-            config.set(name, 'protocol', protocol)
-            config.set(name, 'host', host)
-            with open(config_file_path, 'w') as configfile:
-                config.write(configfile)
+    logger = logging.getLogger(__name__)    
 
     if os.path.exists(config_file_path):
-        PROTOCOL, HOST = read_config("settings")
+        PROTOCOL, HOST = read_config(config_file_path, "settings")
         logger.info(f"PROTOCOL => {PROTOCOL}")
         logger.info(f"HOST => {HOST}")
     elif not os.path.exists(config_file_path):
@@ -75,4 +49,4 @@ if CONFIG_SERVER == 1:
         HOST = "182.66.219.114:9010"
         # PROTOCOL = "https"
         # HOST = "ralvie.minervaiotstaging.com"
-        write_config("settings", PROTOCOL, HOST)
+        write_config(config_file_path, "settings", PROTOCOL, HOST)
