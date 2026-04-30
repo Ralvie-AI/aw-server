@@ -492,7 +492,7 @@ class ServerAPI:
                     data["clientTimeZone"] = str(get_localzone()) 
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events}
-                logger.info(f"payload => {payload}")
+                logger.info(f"events payload => {payload}")
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 
@@ -641,7 +641,7 @@ class ServerAPI:
                         "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
 
-            logger.info(f"payload info => {payload}")
+            logger.info(f"screenshot payload => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
