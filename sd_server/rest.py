@@ -411,17 +411,16 @@ class RalvieLoginResource(Resource):
         reset_user()
 
         # Authenticate User
-        auth_result = current_app.api.authorize(data)
+        auth_result = current_app.api.authorize(data)        
 
         # Returns a JSON response with the user credentials.
         if auth_result.status_code == 200 and json.loads(auth_result.text)["code"] == 'UASI0011':
+            
+            if DEVELOPMENT_MODE != 1:
+                if companyId:
+                    logger.info(f"companyId => {json.loads(auth_result.text)}")
+            
             # Retrieve Cached User Credentials
-            cached_credentials = cache_user_credentials(CACHE_KEY)
-            token = json.loads(auth_result.text)["data"]["access_token"]
-            # Get the User Key
-            user_key = cached_credentials.get(
-                "encrypted_db_key") if cached_credentials else None
-
             token = json.loads(auth_result.text)["data"]["access_token"]
             refresh_token = json.loads(auth_result.text)[
                 "data"]["refresh_token"]
@@ -433,7 +432,7 @@ class RalvieLoginResource(Resource):
             # Reset the user to the default user
             if not init_db:
                 reset_user()
-                return {"message": "Something went wrong"}, 500
+                return {"message": "Can not create the database."}, 500
 
             # Generate JWT
             payload = {
@@ -442,16 +441,11 @@ class RalvieLoginResource(Resource):
                 "phone": cache_user_credentials(CACHE_KEY).get("phone"),
             }
             encoded_jwt = jwt.encode(payload, cache_user_credentials(CACHE_KEY).get("user_key"),
-                                     algorithm="HS256")
+                                     algorithm="HS256")       
 
-            # Response
-            response_data['code'] = "UASI0011",
-            response_data["message"] = json.loads(auth_result.text)["message"],
-            response_data['companyId'] = companyId,
-            response_data["data"]: {"token": "Bearer " + encoded_jwt}
             return {"code": "UASI0011", "message": json.loads(auth_result.text)["message"], "companyId": companyId,
                     "data": {"token": "Bearer " + encoded_jwt, "access_token": "Bearer " + token, "refresh_token": refresh_token}, "userId": user_id}, 200
-        else:
+        else:            
             return {"code": json.loads(auth_result.text)["code"], "message": json.loads(auth_result.text)["message"],
                     "data": json.loads(auth_result.text)["data"], "userId": user_id}, 200
 

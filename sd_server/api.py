@@ -806,9 +806,16 @@ class ServerAPI:
             # Serialize the data and update the secure storage
             serialized_data = json.dumps(SD_KEYS)
             status = add_password(CACHE_KEY, serialized_data)
-            print(status)
+
+            if DEVELOPMENT_MODE != 1:
+                logger.info(f"Adding password status => {status}")
+                
             # Retrieve the cached credentials to confirm they were updated
             cached_credentials = get_credentials(CACHE_KEY)
+
+            if DEVELOPMENT_MODE != 1:
+                logger.info(f"cached_credentials => {cached_credentials}")
+
             if cached_credentials:
                 key_decoded = cached_credentials.get("user_key")
                 self.last_event = {}
