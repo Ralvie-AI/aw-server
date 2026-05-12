@@ -30,7 +30,7 @@ from sd_core.cache import (cache_user_credentials, get_credentials, clear_creden
                            add_password, store_credentials, credentials)
 from sd_core.util import (encrypt_uuid, load_key, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
-from sd_core.const import CACHE_KEY, PUBLIC_KEY
+from sd_core.const import CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE
 from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
@@ -511,10 +511,11 @@ class ServerAPI:
 
                         logger.info(f"is_failed_event 1 => {is_failed_event}")
                         
-                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
-                        threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
-                        threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
-                        time.sleep(5)
+                        if DEVELOPMENT_MODE != 0:                                
+                            threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
+                            threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
+                            threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
+                            time.sleep(5)
 
                         if response_data.get('data').get('events'):
                             success_event_ids = response_data.get('data').get('events')
@@ -679,7 +680,7 @@ class ServerAPI:
 
             json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
-            # logger.info(f"User ID from load_key: {userId}")
+            logger.info(f"Restry sync screenshot User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
@@ -722,6 +723,7 @@ class ServerAPI:
                         "screenshotCaptureTime": screenshot_capture_time,
                         "ocrText": ocr_data,
                         "clientTimeZone": str(get_localzone()),
+                        "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
 
             # logger.info(f"payload info => {payload}")
@@ -1790,9 +1792,12 @@ class ScreenShotQueue(threading.Thread):
                                             record.delete_instance()
 
                         if response_code == REJECTED_SYNC_STATUS:
-                            threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
-                            threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
-                            threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
+
+                            if DEVELOPMENT_MODE != 0:                                    
+                                threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
+                                threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
+                                threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
+                                
                             logger.info("Events were rejected by the server. It looks like a session conflict caused by a concurrent login on a different machine.")
 
                             for record in self.server.db.get_screenshot_record():
