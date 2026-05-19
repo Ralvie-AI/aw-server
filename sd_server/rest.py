@@ -181,30 +181,6 @@ def copy_doc(api_method):
 
 
 # SERVER INFO
-def format_duration(duration):
-    """
-     Format duration in human readable format. This is used to format durations when logging to logcat
-
-     @param duration - The duration to format.
-
-     @return A string representing the duration in human readable format e. g
-    """
-    # Format duration in H m s format.
-    if duration is not None:
-        seconds = int(duration)
-        d = seconds // (3600 * 24)
-        h = seconds // 3600 % 24
-        m = seconds % 3600 // 60
-        s = seconds % 3600 % 60
-        # Returns a string representation of the H m s.
-        if h > 0:
-            return '{:02d}H {:02d}m {:02d}s'.format(h, m, s)
-        elif m > 0:
-            return '{:02d}m {:02d}s'.format(m, s)
-        elif s > 0:
-            return '{:02d}s'.format(s)
-    return '1s'
-
 
 @api.route("/0/info")
 class InfoResource(Resource):

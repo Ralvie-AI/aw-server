@@ -39,7 +39,7 @@ from sd_core.os_util import send_to_gui
 from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
-                             PROTOCOL, HOST, SCREEN_SHOT_SYNC_TIME)
+                             PROTOCOL, REMOTE_HOST, SCREEN_SHOT_SYNC_TIME)
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 
 HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
@@ -133,7 +133,7 @@ class ServerAPI:
         self.last_event = {}  # Stores the last event for each bucket to optimize event updates.
 
         # Configure server address.
-        self.server_address = f"{PROTOCOL}://{HOST}"
+        self.server_address = f"{PROTOCOL}://{REMOTE_HOST}"
 
         # Initialize the RalvieServerQueue for handling background sync tasks.
         try:
@@ -143,7 +143,7 @@ class ServerAPI:
             logger.error(f"Failed to initialize RalvieServerQueue: {e}")
             self.ralvie_server_queue = None
 
-        logger.info(f"HOST => {HOST}")
+        logger.info(f"REMOTE_HOST => {REMOTE_HOST}")
         logger.info(f"PROTOCOL => {PROTOCOL}")
 
         try:
@@ -1616,7 +1616,7 @@ class ScreenShotQueue(threading.Thread):
         headers={'X-SUNDIAL-UUID': get_uuid_address()}
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=HOST, user_id=userId, company_id=companyId )
+                url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=REMOTE_HOST, user_id=userId, company_id=companyId )
                 # logger.info(f"url => {url}")
                 res = requests.get(url, headers=headers)
                 data = res.json()                

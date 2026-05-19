@@ -17,14 +17,14 @@ GITHUB_COMMIT_ID=f"main/windows_{GIT_COMMIT}"
 
 if DEVELOPMENT_MODE == 0:
     if STAGING == 1:
-        HOST = HOST_DEV
+        REMOTE_HOST = HOST_DEV
     else:
-        HOST = HOST_PRO
+        REMOTE_HOST = HOST_PRO
 else:
     if STAGING == 1:
-        HOST = HOST_DEV
+        REMOTE_HOST = HOST_DEV
     else:
-        HOST = HOST_PRO
+        REMOTE_HOST = HOST_PRO
 
 
 ##### RESPONSE CODE FROM RALVRCI0000IE SERVER #####
@@ -41,12 +41,12 @@ if CONFIG_SERVER == 1:
     logger = logging.getLogger(__name__)    
 
     if os.path.exists(config_file_path):
-        PROTOCOL, HOST = read_config(config_file_path, "settings")
+        PROTOCOL, REMOTE_HOST = read_config(config_file_path, "settings")
         logger.info(f"PROTOCOL => {PROTOCOL}")
-        logger.info(f"HOST => {HOST}")
+        logger.info(f"HOST => {REMOTE_HOST}")
     elif not os.path.exists(config_file_path):
         PROTOCOL = "http"
-        HOST = "182.66.219.114:9010"
+        REMOTE_HOST = "182.66.219.114:9010"
         # PROTOCOL = "https"
         # HOST = "ralvie.minervaiotstaging.com"
-        write_config(config_file_path, "settings", PROTOCOL, HOST)
+        write_config(config_file_path, "settings", PROTOCOL, REMOTE_HOST)
