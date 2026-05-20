@@ -39,7 +39,14 @@ def screenshot():
 
     # if is_idle_screenshot was false, no need to take screen shot for idle time.    
     if get_afk_data.get('status') == 'afk' and not json_data.get('is_idle_screenshot'):
+        file_root, ext = os.path.splitext(file_location)
+        ocr_file = file_root + "_ocr.png"
+
+        logger.info(f"Deleting full screenshot => {file_location}")
+        logger.info(f"Deleteing ocr file => {ocr_file}")
+
         os.remove(file_location)
+        os.remove(ocr_file)
         return jsonify({
                         'result': "Success",
                         'message': 'It will not take screenshot because Idle Time Screenshot is disabled ',   
