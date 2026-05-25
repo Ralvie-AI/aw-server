@@ -30,7 +30,7 @@ from sd_core.cache import (cache_user_credentials, get_credentials, clear_creden
                            add_password, store_credentials, credentials)
 from sd_core.util import (encrypt_uuid, load_key, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
-from sd_core.const import CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE
+from sd_core.const import CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE
 from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
@@ -642,7 +642,9 @@ class ServerAPI:
                         "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
 
-            logger.info(f"screenshot payload => {payload}")
+            if LOGGING_VERBOSE != 0:
+                logger.info(f"screenshot payload => {payload}")
+
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
@@ -1754,7 +1756,8 @@ class ScreenShotQueue(threading.Thread):
                                 # self.server.db.update_ocr_text(record.id, ocr_result)
                                 break
 
-                            logger.info(f"record.ocr_text => {record.ocr_text}")
+                            if LOGGING_VERBOSE != 0:
+                                logger.info(f"record.ocr_text => {record.ocr_text}")
 
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
