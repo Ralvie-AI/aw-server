@@ -500,7 +500,7 @@ class ServerAPI:
                 for data in events:                    
                     data["clientTimeZone"] = str(get_localzone()) 
 
-                payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS"}
+                payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS", "sundial_version":TMP_VERSION}
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
