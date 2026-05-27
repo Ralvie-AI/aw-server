@@ -31,6 +31,7 @@ from sd_core.cache import (cache_user_credentials, get_credentials, clear_creden
 from sd_core.util import (encrypt_uuid, load_key, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
 from sd_core.const import CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE
+from sd_core.version import RELEASE_VERSION
 from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
@@ -491,8 +492,11 @@ class ServerAPI:
                 for data in events:                    
                     data["clientTimeZone"] = str(get_localzone()) 
                     
-                payload = {"userId": userId, "companyId": companyId, "events": events}
-                logger.info(f"events payload => {payload}")
+                payload = {"userId": userId, "companyId": companyId, "events": events, "sundial_version": RELEASE_VERSION}
+
+                if LOGGING_VERBOSE == 0:
+                    logger.info(f"events payload => {payload}")
+
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 
@@ -800,7 +804,7 @@ class ServerAPI:
             }
 
             add_password(CACHE_KEY, SD_KEYS)
-                       
+
             self.last_event = {}
 
         return user_credentials
