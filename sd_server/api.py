@@ -494,7 +494,7 @@ class ServerAPI:
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events, "sundial_version": RELEASE_VERSION}
 
-                if LOGGING_VERBOSE == 0:
+                if LOGGING_VERBOSE != 0:
                     logger.info(f"events payload => {payload}")
 
                 endpoint = "/web/event"
