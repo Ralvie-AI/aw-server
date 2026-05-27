@@ -28,7 +28,7 @@ def main():
     setup_logging(
         "sd-server",
         testing=settings.testing,
-        verbose=settings.verbose,
+        # verbose=settings.verbose,
         log_stderr=True,
         log_file=True,
     )
