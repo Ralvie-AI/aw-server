@@ -24,7 +24,7 @@ from flask import (
 
 from sd_core.launch_start import delete_launch_app, launch_app, set_autostart_registry
 from sd_core.util import authenticate, is_internet_connected, reset_user
-from sd_core.const import DEVELOPMENT_MODE, CACHE_KEY, SETTINGS_CACHE_KEY
+from sd_core.const import CACHE_KEY, SETTINGS_CACHE_KEY, LOGGING_VERBOSE
 from sd_core import schema, db_cache
 from sd_core.models import Event
 from sd_core.cache import cache_user_credentials
@@ -392,7 +392,7 @@ class RalvieLoginResource(Resource):
         # Returns a JSON response with the user credentials.
         if auth_result.status_code == 200 and json.loads(auth_result.text)["code"] == 'UASI0011':
             
-            if DEVELOPMENT_MODE != 1:
+            if LOGGING_VERBOSE == 1:
                 if companyId:
                     logger.info(f"companyId => {json.loads(auth_result.text)}")
             
@@ -1468,6 +1468,6 @@ class server_status(Resource):
 class LottieJs(Resource):    
 
     def get(self):
-        if DEVELOPMENT_MODE == 0:
+        if LOGGING_VERBOSE == 1:
             logger.info(f"api.blueprint_setup.app.static_folder: {api.blueprint_setup.app.static_folder}")
         return send_from_directory(api.blueprint_setup.app.static_folder, "js/lottie.min.js")
