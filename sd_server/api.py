@@ -771,9 +771,6 @@ class ServerAPI:
             credentials_data = json.loads(user_credentials.text)["data"]["credentials"]
             user_data = json.loads(user_credentials.text)["data"]["user"]
 
-            # Clear the cache and keychain only for the relevant service key (SD_KEYS)
-            clear_credentials(CACHE_KEY)
-            delete_password(CACHE_KEY)
             # Extract and encrypt credentials
             db_key = credentials_data["dbKey"]
             data_encryption_key = credentials_data["dataEncryptionKey"]
@@ -786,7 +783,7 @@ class ServerAPI:
             key = user_key
             encrypted_db_key = encrypt_uuid(db_key, key)
             encrypted_data_encryption_key = encrypt_uuid(data_encryption_key, key)
-            encrypted_user_key = encrypt_uuid(user_key, key)
+            # encrypted_user_key = encrypt_uuid(user_key, key)
             # Create the SD_KEYS dictionary
             SD_KEYS = {
                 "user_key": user_key,
@@ -802,25 +799,9 @@ class ServerAPI:
                 "Authenticated": True,
             }
 
-            # Update the cache first
-            store_credentials(CACHE_KEY, SD_KEYS)
-
-            # Serialize the data and update the secure storage
-            serialized_data = json.dumps(SD_KEYS)
-            status = add_password(CACHE_KEY, serialized_data)
-
-            if DEVELOPMENT_MODE != 1:
-                logger.info(f"Adding password status => {status}")
-                
-            # Retrieve the cached credentials to confirm they were updated
-            cached_credentials = get_credentials(CACHE_KEY)
-
-            if DEVELOPMENT_MODE != 1:
-                logger.info(f"cached_credentials => {cached_credentials}")
-
-            if cached_credentials:
-                key_decoded = cached_credentials.get("user_key")
-                self.last_event = {}
+            add_password(CACHE_KEY, SD_KEYS)
+                       
+            self.last_event = {}
 
         return user_credentials
 
