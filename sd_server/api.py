@@ -29,7 +29,7 @@ from tzlocal import get_localzone
 from sd_core.cache import cache_user_credentials
 from sd_core.cache import *
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected, stop_module
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME
+from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
 from sd_core.models import Event
@@ -740,7 +740,7 @@ class ServerAPI:
                         "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
 
-            # logger.info(f"payload info => {payload}")
+            logger.debug(f"screenshot payload => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
@@ -1229,15 +1229,15 @@ class ServerAPI:
         if heartbeat["data"]["app"] and heartbeat["data"]["app"] != "afk"and get_credentials("is_afk"):
             return heartbeat
 
-        logger.debug(
-            "Received heartbeat in bucket '{}'\n\ttimestamp: {}, duration: {}, pulsetime: {}\n\tdata: {}".format(
-                bucket_id,
-                heartbeat.timestamp,
-                heartbeat.duration,
-                pulsetime,
-                heartbeat.data,
-            )
-        )
+        # logger.debug(
+        #     "Received heartbeat in bucket '{}'\n\ttimestamp: {}, duration: {}, pulsetime: {}\n\tdata: {}".format(
+        #         bucket_id,
+        #         heartbeat.timestamp,
+        #         heartbeat.duration,
+        #         pulsetime,
+        #         heartbeat.data,
+        #     )
+        # )
 
         # The endtime here is set such that in the event that the heartbeat is older than an
         # existing event we should try to merge it with the last event before the heartbeat instead.
@@ -1266,11 +1266,11 @@ class ServerAPI:
                 # If heartbeat is valid or after pulse window insert new event.
                 if merged is not None:
                     # Heartbeat was merged into last_event
-                    logger.debug(
-                        "Received valid heartbeat, merging. (bucket: {}) (app: {})".format(
-                            bucket_id, merged["data"]["app"]
-                        )
-                    )
+                    # logger.debug(
+                    #     "Received valid heartbeat, merging. (bucket: {}) (app: {})".format(
+                    #         bucket_id, merged["data"]["app"]
+                    #     )
+                    # )
                     # self.last_event[bucket_id] = merged
                     # self.db[bucket_id].replace_last(merged)
                     # return merged
@@ -1301,17 +1301,19 @@ class ServerAPI:
                         return heartbeat
 
                 else:
-                    logger.debug(
-                        "Received heartbeat after pulse window, inserting as new event. (bucket: {}) (app: {})".format(
-                            bucket_id, heartbeat["data"]["app"]
-                        )
-                    )
+                    # logger.debug(
+                    #     "Received heartbeat after pulse window, inserting as new event. (bucket: {}) (app: {})".format(
+                    #         bucket_id, heartbeat["data"]["app"]
+                    #     )
+                    # )
+                    pass
             else:
-                logger.debug(
-                    "Received heartbeat with differing data, inserting as new event. (bucket: {}) (app: {})".format(
-                            bucket_id, heartbeat["data"]["app"]
-                        )
-                )
+                # logger.debug(
+                #     "Received heartbeat with differing data, inserting as new event. (bucket: {}) (app: {})".format(
+                #             bucket_id, heartbeat["data"]["app"]
+                #         )
+                # )
+                pass
         else:
             logger.info(
                 "Received heartbeat, but bucket was previously empty, inserting as new event. (bucket: {})".format(
@@ -1590,7 +1592,7 @@ class RalvieServerQueue(threading.Thread):
                     logger.info("Connected to internet. Attempting to sync events.")
                     try:
                         sync_result = self.server.sync_events_to_ralvie()
-                        logger.info(f"Sync result: {sync_result}")
+                        logger.info(f"event sync result: {sync_result}")
                     except Exception as e:
                         logger.error(f"Error during sync: {e}")
                         self.connected = False
@@ -1661,7 +1663,7 @@ class ScreenShotQueue(threading.Thread):
                 # logger.info(f"url => {url}")
                 res = requests.get(url, headers=headers)
                 data = res.json()                
-                # logger.info(f"result get_pre_signed_url => {data}")
+                logger.debug(f"result get_pre_signed_url => {data}")
                 if data.get('code') == REJECTED_SYNC_STATUS:
                     result = None, None, REJECTED_SYNC_STATUS
                 else:
@@ -1801,11 +1803,14 @@ class ScreenShotQueue(threading.Thread):
                                 if not os.path.exists(active_file):
                                     logger.warning(f"Screenshot file missing: {active_file}")
                                     record.delete_instance()
-                                    continue   
+                                    continue 
+
+                                # if not os.path.exists(active_file):
+                                #     logger.warning(f"[WAIT] Screenshot not ready: {active_file}")
+                                #     continue  
 
                                 ocr_result = self.ocr.run_ocr(img_path=active_file)
-                                logger.info(f'result => {ocr_result}')
-                                # logger.info(f'result type=> {type(ocr_result)}')
+                                logger.debug(f'ocr result => {ocr_result}')
 
                                 if not isinstance(ocr_result, str):
                                     ocr_result = json.dumps(ocr_result)
@@ -1820,7 +1825,7 @@ class ScreenShotQueue(threading.Thread):
                             res = self.upload_screenshot(record.file_path, pre_signed_url)
                             if res.get('status') == "SUCCESS":
                                 sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)
-                                logger.info(f"result url => {sync_result}")
+                                logger.info(f"screenshot sync result => {sync_result}")
                                 if sync_result == "RCI0000":
                                     # logger.info(f"record.sync_status after => {record.sync_status}")
                                     if record.sync_status == 1:
@@ -1848,12 +1853,11 @@ class ScreenShotQueue(threading.Thread):
                                     sync_result = self.server.retry_sync_screenshot_to_ralvie(record.object_key, record)
                                     logger.info(f"result url => {sync_result}")
                                     if sync_result == "RCI0000":
-                                        # logger.info(f"record.sync_status after => {record.sync_status}")
-                                        # logger.info(f"record.object_key after => {record.object_key}")
+                                        logger.info(f"screenshot sync result => {sync_result}")
                                         if record.sync_status == 1:
                                             # logger.info(f"dir => {dir(record)}")
                                             img_file_path = record.file_path
-                                            # logger.info(f"img_file_path => {img_file_path}")
+                                            logger.debug(f"img_file_path => {img_file_path}")
                                             os.remove(img_file_path)
                                             tmp_file_path, ext = os.path.splitext(img_file_path)
                                             screenshot_file = f"{tmp_file_path}.png"
