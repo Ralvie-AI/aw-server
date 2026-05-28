@@ -488,9 +488,10 @@ class ServerAPI:
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
                         # logger.info(f"No need to sync the event to the server.")
                         return {"status": "No need to sync the event not more than 30 minute."}
-                    
+                
+                local_zone = str(get_localzone()) 
                 for data in events:                    
-                    data["clientTimeZone"] = str(get_localzone()) 
+                    data["clientTimeZone"] = local_zone
                     data["sundial_version"] = RELEASE_VERSION 
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events}
