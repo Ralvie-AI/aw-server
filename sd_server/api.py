@@ -491,8 +491,9 @@ class ServerAPI:
                     
                 for data in events:                    
                     data["clientTimeZone"] = str(get_localzone()) 
+                    data["sundial_version"] = RELEASE_VERSION 
                     
-                payload = {"userId": userId, "companyId": companyId, "events": events, "sundial_version": RELEASE_VERSION}
+                payload = {"userId": userId, "companyId": companyId, "events": events}
 
                 if LOGGING_VERBOSE != 0:
                     logger.info(f"events payload => {payload}")
