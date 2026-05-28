@@ -259,7 +259,7 @@ class ServerAPI:
         max_address = hex(uuid.getnode())
         if data.get('userName'):
             uuid_address = get_uuid_address(data.get('userName'))
-            # logger.info(f"uuid_address email   {data.get('userName')}")
+            logger.debug(f"uuid_address email {data.get('userName')}")
         else:
             uuid_address = get_uuid_address()
 
@@ -487,13 +487,10 @@ class ServerAPI:
             if events:
                 if len(events) == 1:
                     current_now = datetime.now(timezone.utc)
-                    # logger.info(f"current_now {current_now}")
                     event = events[0]
                     timestamp = parser.isoparse(event["timestamp"])
-                    # logger.info(f"timestamp {timestamp}")
                     result = (current_now - timestamp).total_seconds()
-                    # logger.info(f"result {result}")
-        
+            
                     if not result >= 60 * 30: # less than 30 minutes, no synchronization to the server
                         return {"status": "No need to sync the event not more than 30 minute."}
                     
@@ -501,20 +498,18 @@ class ServerAPI:
                     data["clientTimeZone"] = str(get_localzone()) 
 
                 payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS", "sundial_version":TMP_VERSION}
+                logger.debug(f"event payload => {json.dumps(payload)}")
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
-                # logger.info(f"events {events}")
 
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
-                        
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
-                        # logger.info(f"Successfully synced {len(events)} events.")
-                        # logger.info(f"Events {event_ids}")
                         return {"status": f"Successfully synced total events => {len(event_ids)}" }
+                    
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
                         is_failed_event = False
                         failed_event_ids = set()
@@ -563,6 +558,7 @@ class ServerAPI:
 
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
+
                         # send_to_gui only login
                         if  keychain_item_exists("Sundial"):
                             send_to_gui("fail")
@@ -584,7 +580,6 @@ class ServerAPI:
     def sync_screenshot_to_ralvie(self, object_key, record):
 
         try:
-
             json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
             # logger.info(f"User ID from load_key: {userId}")
@@ -625,10 +620,7 @@ class ServerAPI:
                 except Exception as e:
                     logger.error(f"OCR JSON parse failed: {e}")
                     ocr_data = []
-
-            # logger.info(f"record.ocr_text type => {type(record.ocr_text)}")
             # logger.info(f"ocr_data => {ocr_data}")
-
 
             payload = {"userId": userId, 
                         "companyId": companyId,    
@@ -645,14 +637,13 @@ class ServerAPI:
                         "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
         
-            # logger.info(f"payload info => {payload}")
+            # logger.info(f"screenshot payload info => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
                 try:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
-                    # logging.info(f"result testing => {response.json()}")
                     json_data = response.json()
                     # logger.info(f"json_data => {json_data}")
                     # logger.info(f"json_data code => {json_data.get('code')}")
@@ -711,19 +702,15 @@ class ServerAPI:
             if record.ocr_text:
                 try:
                     ocr_text_json = json.loads(record.ocr_text)
-                    
                     for data in ocr_text_json.get("data", []):
                         text = data.get("text", "")
-                        
                         if len(text) == 1:
                             continue
-                        
                         ocr_data.append(data)
 
                 except Exception as e:
                     logger.error(f"OCR JSON parse failed: {e}")
                     ocr_data = []
-
 
             payload = {"userId": userId, 
                         "companyId": companyId,    
@@ -752,7 +739,6 @@ class ServerAPI:
                     # logger.info(f"json_data => {json_data}")
                     # logger.info(f"json_data code => {json_data.get('code')}")
                     # logging.info(f"url => {json_data.get('data').get('url')}")                         
-
                     if json_data.get('code') == "RCI0000":
                         record.sync_status = 1
                         record.save()
@@ -816,10 +802,8 @@ class ServerAPI:
                 "Authenticated": True,
                 "version": VERSION_DISPLAY
             }
-
             # Update the cache first
             store_credentials(CACHE_KEY, SD_KEYS)
-
             # Serialize the data and update the secure storage
             serialized_data = json.dumps(SD_KEYS)
             status = add_password(CACHE_KEY, serialized_data)
@@ -1466,8 +1450,6 @@ def datetime_serializer(obj):
         return obj.isoformat()
 
 
-
-
 def event_filter(most_used_apps,data):
     """
         Filter events to include only those that don't have lock apps or login windows
@@ -1586,7 +1568,6 @@ class RalvieServerQueue(threading.Thread):
                     logger.info("Attempting to reconnect...")
                     if self._try_connect():
                         last_tick_time = time.time()
-
 
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync events.")
