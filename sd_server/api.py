@@ -496,8 +496,9 @@ class ServerAPI:
                     
                 for data in events:                    
                     data["clientTimeZone"] = str(get_localzone()) 
+                    data["sundial_version"] = TMP_VERSION
 
-                payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS", "sundial_version":TMP_VERSION}
+                payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS"}
                 logger.debug(f"event payload => {json.dumps(payload)}")
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
