@@ -503,6 +503,7 @@ class ServerAPI:
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
+                logger.debug("Events %s", event_ids)
 
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
@@ -556,9 +557,8 @@ class ServerAPI:
                         server_pid = get_running_process_id("sd-server")
                         
                         threading.Thread(target=server_pid, args=("sd-server",)).start()
-
-                        logger.info(f"Events {event_ids}")
-                        logger.info(f"response_data {response_data}")
+                        # logger.info(f"Events {event_ids}")
+                        # logger.info(f"response_data {response_data}")
 
                         # send_to_gui only login
                         if  keychain_item_exists("Sundial"):

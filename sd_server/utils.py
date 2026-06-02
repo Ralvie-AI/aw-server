@@ -121,6 +121,7 @@ def get_uuid_address(email=None, system_uuid=None):
 
     if not system_uuid:
         system_uuid = get_system_uuid()
+    # logger.debug(f"Current system_uuid: {system_uuid}")
 
     if email:
         logger.info(f"Getting uuid address from email.")
