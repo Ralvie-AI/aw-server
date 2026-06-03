@@ -26,8 +26,8 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
 
-from sd_core.cache import (cache_user_credentials, get_credentials, clear_credentials, delete_password,
-                           add_password, store_credentials, credentials)
+from sd_core.cache import (cache_user_credentials, get_credentials, add_password, store_credentials, 
+                           credentials)
 from sd_core.util import (encrypt_uuid, load_key, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
 from sd_core.const import CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE
@@ -1326,7 +1326,6 @@ class ServerAPI:
         end: Optional[datetime] = None,
     ) -> List[Event]:
         events = self.db.get_dashboard_events(starttime=start,endtime=end)
-        # print("eventssssss", events)
         # groupedEvents = group_events_by_application(events)   
 
         if len(events) > 0:
@@ -1499,7 +1498,6 @@ class RalvieServerQueue(threading.Thread):
     def _try_connect(self) -> bool:
         try:
             cached_credentials = cache_user_credentials(CACHE_KEY)
-            print("cached_credentials ", cached_credentials)
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
                 user_key = load_key("user_key")
@@ -1532,12 +1530,12 @@ class RalvieServerQueue(threading.Thread):
 
         while not self.should_stop():
             # Check internet connection and attempt to sync
-            # print("is_internet_connected()", is_internet_connected())
+
             if is_internet_connected():
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
                     self._try_connect()
-                # print("self.connected ", self.connected)
+
                 if self.connected:
                     logger.info("Connected to internet. Attempting to sync events.")
                     try:
@@ -1566,7 +1564,6 @@ class ScreenShotQueue(threading.Thread):
     def _try_connect(self) -> bool:
         try:
             cached_credentials = cache_user_credentials(CACHE_KEY)
-            print("cached_credentials ", cached_credentials)
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
                 user_key = load_key("user_key")
@@ -1628,7 +1625,6 @@ class ScreenShotQueue(threading.Thread):
             try:
                 res = requests.put(url_path)
                 data = res.json()
-                # print("data", data)
                 logging.info(f"Upload failed with status code: {data.get('code')}")
                 logging.info(f"Url to download: {data.get('data').get('url')}")
                 break
