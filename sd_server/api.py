@@ -26,29 +26,24 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
 
-from sd_core.cache import cache_user_credentials
-from sd_core.cache import *
-from sd_core.util import encrypt_uuid, load_key, is_internet_connected, stop_module
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION
+from sd_core.cache import (cache_user_credentials, clear_credentials, delete_password, add_password, store_credentials, get_credentials)
+from sd_core.util import encrypt_uuid, load_key, is_internet_connected
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string
-from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
+from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION, PUBLIC_KEY
 from sd_server.ocr_active import ActiveWindowOCRText
-
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 from sd_main.sd_desktop.util import (credentials)
-from sd_server.const import PUBLIC_KEY
-
+from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
 
 from .__about__ import __version__
 from .exceptions import NotFound
 
 HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}" 
-
 MAX_RETRIES = 3
 DELAY_SECONDS = 3  # wait before retry
 
@@ -59,7 +54,6 @@ logger = logging.getLogger(__name__)
 
 if os.environ.get('SSLKEYLOGFILE'):
     os.environ.pop('SSLKEYLOGFILE', None)
-
 
 def get_device_id() -> str:  
     path = Path(get_data_dir("sd-server")) / "device_id"
@@ -117,7 +111,6 @@ def _log_request_exception(e: req.RequestException):
     except json.JSONDecodeError:
         pass
 
-
 class ServerAPI:
     def __init__(self, db, testing: bool) -> None:
         """
@@ -143,7 +136,8 @@ class ServerAPI:
         except Exception as e:
             logger.error(f"Failed to initialize RalvieServerQueue: {e}")
             self.ralvie_server_queue = None
-        
+
+        # Initialize the ScreenShotQueue for handling background sync tasks.
         try:
             self.screen_shot_queue = ScreenShotQueue(self)
             logger.info("ScreenShotQueue initialized successfully.")
@@ -325,8 +319,6 @@ class ServerAPI:
             headers=headers,
             params=params,
         )
-
-
 
     @always_raise_for_request_errors
     def _put_with_file(
@@ -555,10 +547,7 @@ class ServerAPI:
 
                         logger.info(f"is_failed_event 4 => {failed_event_ids}")
                         server_pid = get_running_process_id("sd-server")
-                        
                         threading.Thread(target=server_pid, args=("sd-server",)).start()
-                        # logger.info(f"Events {event_ids}")
-                        # logger.info(f"response_data {response_data}")
 
                         # send_to_gui only login
                         if  keychain_item_exists("Sundial"):
@@ -579,7 +568,6 @@ class ServerAPI:
             return {"status": "error_occurred", "message": str(e)}
         
     def sync_screenshot_to_ralvie(self, object_key, record):
-
         try:
             json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
@@ -674,7 +662,6 @@ class ServerAPI:
     
     def retry_sync_screenshot_to_ralvie(self, object_key, record):
         try:
-
             json_datastr = json.loads(record.event.datastr)
             userId = load_key("userId")
             # logger.info(f"User ID from load_key: {userId}")
@@ -736,10 +723,7 @@ class ServerAPI:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
                     # logging.info(f"result testing => {response.json()}")
-                    json_data = response.json()
-                    # logger.info(f"json_data => {json_data}")
-                    # logger.info(f"json_data code => {json_data.get('code')}")
-                    # logging.info(f"url => {json_data.get('data').get('url')}")                         
+                    json_data = response.json()                    
                     if json_data.get('code') == "RCI0000":
                         record.sync_status = 1
                         record.save()
@@ -1774,13 +1758,8 @@ class ScreenShotQueue(threading.Thread):
                             if not record.ocr_text:
                                 # logger.info(f"record.file_path => {record.file_path}")
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
-                                # screenshot_file = f"{tmp_file_path}.png"
                                 # use active image
                                 active_file = f"{tmp_file_path}_active.png"
-                                # logger.info(f"[OCR] active_file => {active_file}")
-                                # logger.info(f"[OCR] exists => {os.path.exists(active_file)}")
-                                
-                                # logger.info(f"screenshot_file => {screenshot_file}")
 
                                 if not os.path.exists(active_file):
                                     logger.warning(f"Screenshot file missing: {active_file}")
