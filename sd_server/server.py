@@ -1,7 +1,6 @@
 import logging
 import os
 import platform
-import json
 from datetime import datetime, timedelta
 from typing import Dict, List
 
@@ -12,8 +11,6 @@ from flask import (
     Flask,
     current_app,
     send_from_directory,
-    jsonify,
-    request
 )
 
 import sd_datastore
@@ -68,7 +65,7 @@ class AWFlask(Flask):
         self.json_provider_class = CustomJSONProvider
         # only prettyprint JSON if testing (due to perf)
         self.json_provider_class.compact = not testing
-
+        
         # Initialize Flask
         Flask.__init__(
             self,
@@ -78,7 +75,7 @@ class AWFlask(Flask):
         )
         self.config["HOST"] = host  # needed for host-header check
         with self.app_context():
-            _config_cors(cors_origins, testing)
+            _config_cors(cors_origins, testing)      
 
         # Initialize datastore and API
         # Get the storage method for the datastore.

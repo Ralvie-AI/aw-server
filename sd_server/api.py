@@ -26,7 +26,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
 
-from sd_core.cache import (cache_user_credentials, get_credentials, add_password, store_credentials, 
+from sd_core.cache import (get_credentials, add_password, store_credentials, 
                            credentials)
 from sd_core.util import (encrypt_uuid, load_key, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
@@ -126,9 +126,7 @@ class ServerAPI:
         :param db: Database instance to use for communication.
         :param testing: True if we are testing, False otherwise.
         :return: None
-        """        
-        cache_user_credentials(CACHE_KEY)
-
+        """ 
         self.db = db
         self.testing = testing
         self.last_event = {}  # Stores the last event for each bucket to optimize event updates.
@@ -454,14 +452,14 @@ class ServerAPI:
 
     def sync_events_to_ralvie(self):
 
-        try:
-            userId = load_key("userId")
-            # logger.info(f"User ID from load_key: {userId}")
+        try:      
+            userId = None
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
 
+            userId = cached_credentials.get('userId')
             companyId = cached_credentials.get('companyId')
             token = cached_credentials.get('token')
 
@@ -599,14 +597,14 @@ class ServerAPI:
         
     def sync_screenshot_to_ralvie(self, object_key, record):
         try:
-
-            json_datastr = json.loads(record.event.datastr)
-            userId = load_key("userId")
+            userId = None 
+            json_datastr = json.loads(record.event.datastr)            
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
 
+            userId = cached_credentials.get('userId')
             companyId = cached_credentials.get('companyId')
             token = cached_credentials.get('token')
 
@@ -687,13 +685,14 @@ class ServerAPI:
         try:
 
             json_datastr = json.loads(record.event.datastr)
-            userId = load_key("userId")
+            userId = None
             logger.info(f"Restry sync screenshot User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
 
+            userId = cached_credentials.get('userId')
             companyId = cached_credentials.get('companyId')
             token = cached_credentials.get('token')
 
@@ -1497,11 +1496,11 @@ class RalvieServerQueue(threading.Thread):
 
     def _try_connect(self) -> bool:
         try:
-            cached_credentials = cache_user_credentials(CACHE_KEY)
+            cached_credentials = credentials()
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
-                user_key = load_key("user_key")
-                self.userId = load_key("userId")
+                user_key = cached_credentials.get("user_key")
+                self.userId = cached_credentials.get("userId")
 
                 if db_key and user_key and self.userId:
                     self.connected = True
@@ -1563,11 +1562,11 @@ class ScreenShotQueue(threading.Thread):
 
     def _try_connect(self) -> bool:
         try:
-            cached_credentials = cache_user_credentials(CACHE_KEY)
+            cached_credentials = credentials()
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
-                user_key = load_key("user_key")
-                self.userId = load_key("userId")
+                user_key = cached_credentials.get("user_key")
+                self.userId = cached_credentials.get("userId")
 
                 if db_key and user_key and self.userId:
                     self.connected = True
@@ -1590,14 +1589,13 @@ class ScreenShotQueue(threading.Thread):
         self._stop_event.set()
 
     def get_pre_signed_url(self):
-        result = None, None, None
-        userId = load_key("userId")
-        logger.info(f"User ID from load_key get_pre_signed_url: {userId}")
+        result = None, None, None  
         cached_credentials = get_credentials(CACHE_KEY)
 
         if cached_credentials is None:
             logger.info(f"There was no keychain_item_exists.")
-
+            
+        userId = cached_credentials.get('userId')
         companyId = cached_credentials.get('companyId')
         headers={'X-SUNDIAL-UUID': get_uuid_address()}
         for attempt in range(1, MAX_RETRIES + 1):

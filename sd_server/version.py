@@ -1,1 +1,1 @@
-GIT_COMMIT="24ec43f"
+GIT_COMMIT="1e0a6e2"
