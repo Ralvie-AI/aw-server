@@ -2,7 +2,7 @@ import os
 # DEVELOPMENT_MODE = 0 is for local development.
 # DEVELOPMENT_MODE = 1 is for production.
 
-DEVELOPMENT_MODE = 0        # no need to change this
+DEVELOPMENT_MODE = 0      
 
 STAGING = 1
 
@@ -16,6 +16,7 @@ SCREEN_SHOT_TIME = 60 # 1  minutes
 
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
+
 TMP_VERSION = "1.3.2"
 if STAGING == 1:
     HOST = HOST_DEV

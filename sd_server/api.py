@@ -26,7 +26,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
 
-from sd_core.cache import (cache_user_credentials, clear_credentials, delete_password, add_password, store_credentials, get_credentials)
+from sd_core.cache import (cache_user_credentials, clear_credentials, delete_password, add_password, store_credentials, get_credentials, credentials)
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
@@ -136,6 +136,9 @@ class ServerAPI:
         except Exception as e:
             logger.error(f"Failed to initialize RalvieServerQueue: {e}")
             self.ralvie_server_queue = None
+        
+        logger.debug(f"HOST => {HOST}")
+        logger.debug(f"PROTOCOL => {PROTOCOL}")
 
         # Initialize the ScreenShotQueue for handling background sync tasks.
         try:
@@ -458,12 +461,14 @@ class ServerAPI:
 
     def sync_events_to_ralvie(self):
         try:
-            userId = load_key("userId")
+            userId = None
             # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
             # logger.info(f"cached_credentials: {cached_credentials}")
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
+            
+            userId = cached_credentials.get('userId')
             companyId = cached_credentials.get('companyId')
             token = cached_credentials.get('token')
 
@@ -570,13 +575,14 @@ class ServerAPI:
     def sync_screenshot_to_ralvie(self, object_key, record):
         try:
             json_datastr = json.loads(record.event.datastr)
-            userId = load_key("userId")
+            userId = None
             # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
 
+            userId = cached_credentials.get('userId')
             companyId = cached_credentials.get('companyId')
             token = cached_credentials.get('token')
 
@@ -663,13 +669,14 @@ class ServerAPI:
     def retry_sync_screenshot_to_ralvie(self, object_key, record):
         try:
             json_datastr = json.loads(record.event.datastr)
-            userId = load_key("userId")
+            userId = None
             # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
 
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
 
+            userId = cached_credentials.get('userId')
             companyId = cached_credentials.get('companyId')
             token = cached_credentials.get('token')
 
@@ -1504,11 +1511,11 @@ class RalvieServerQueue(threading.Thread):
 
     def _try_connect(self) -> bool:
         try:
-            cached_credentials = cache_user_credentials(CACHE_KEY)
+            cached_credentials = credentials()
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
-                user_key = load_key("user_key")
-                self.userId = load_key("userId")
+                user_key = cached_credentials.get("user_key")
+                self.userId = cached_credentials.get("userId")
 
                 if db_key and user_key and self.userId:
                     self.connected = True
@@ -1584,12 +1591,12 @@ class ScreenShotQueue(threading.Thread):
 
     def _try_connect(self) -> bool:
         try:
-            cached_credentials = cache_user_credentials(CACHE_KEY)
+            cached_credentials = credentials()
             print("cached_credentials ", cached_credentials)
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
-                user_key = load_key("user_key")
-                self.userId = load_key("userId")
+                user_key = cached_credentials.get("user_key")
+                self.userId = cached_credentials.get("userId")
 
                 if db_key and user_key and self.userId:
                     self.connected = True
@@ -1614,13 +1621,12 @@ class ScreenShotQueue(threading.Thread):
 
     def get_pre_signed_url(self):
         result = None, None, None
-        userId = load_key("userId")
-        # logger.info(f"User ID from load_key get_pre_signed_url: {userId}")
         cached_credentials = get_credentials(CACHE_KEY)
 
         if cached_credentials is None:
             logger.info(f"There was no keychain_item_exists.")
 
+        userId = cached_credentials.get('userId')
         companyId = cached_credentials.get('companyId')
         headers={'X-SUNDIAL-UUID': get_uuid_address()}
         for attempt in range(1, MAX_RETRIES + 1):
@@ -1795,7 +1801,7 @@ class ScreenShotQueue(threading.Thread):
                                         # logger.info(f"img_file_path => {img_file_path}")
                                         os.remove(img_file_path)
 
-                                         # Delete the screenshot file
+                                        # Delete the screenshot file
                                         tmp_file_path, ext = os.path.splitext(img_file_path)
                                         # screenshot_file = f"{tmp_file_path}.png"
                                         # os.remove(screenshot_file)
