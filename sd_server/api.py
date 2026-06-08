@@ -28,9 +28,10 @@ from tzlocal import get_localzone
 
 from sd_core.cache import (get_credentials, add_password, store_credentials, 
                            credentials)
-from sd_core.util import (encrypt_uuid, load_key, is_internet_connected, stop_process_by_exe,
+from sd_core.util import (encrypt_uuid, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
-from sd_core.const import CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE
+from sd_core.const import (CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE, SYNC_TIME, SCREEN_SHOT_SYNC_TIME,
+                            STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME)
 from sd_core.version import RELEASE_VERSION
 from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
@@ -39,8 +40,7 @@ from sd_core.models import Event
 from sd_core.os_util import send_to_gui
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND,  SYNC_TIME,
-                             PROTOCOL, REMOTE_HOST, SCREEN_SHOT_SYNC_TIME)
+from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND, PROTOCOL, REMOTE_HOST)
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 
 HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
@@ -151,6 +151,14 @@ class ServerAPI:
         except Exception as e:
             logger.error(f"Failed to initialize ScreenShotQueue: {e}")
             self.screen_shot_queue = None
+
+        try:
+            self.status_queue = StatusQueue(self)
+            logger.info("StatusQueue initialized successfully.")
+        except Exception as e:
+            logger.error(f"Failed to initialize StatausQueue: {e}")
+            self.status_queue = None
+        
 
     def save_settings(self, code, value) -> None:
         """
@@ -760,7 +768,44 @@ class ServerAPI:
         except Exception as e:            
             logger.error(f"Error during sync_events_to_ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}
-                   
+        
+    def sync_status_to_ralvie(self):
+        try:
+            userId = None                       
+            cached_credentials = get_credentials(CACHE_KEY)
+
+            if cached_credentials is None:
+                logger.info(f"There was no keychain_item_exists.")
+
+            userId = cached_credentials.get('userId')
+            companyId = cached_credentials.get('companyId')
+            token = cached_credentials.get('token')
+            email = cached_credentials.get('email')
+
+            if not userId or not token:
+                logger.warning("User ID or token is missing; unable to sync.")
+                return {"status": "missing_credentials"}           
+            
+            payload = {"companyId": companyId,
+                       "userId": userId,
+                       "email": email}
+            endpoint = "/api/v1/sundial/hb/status"
+            uploaded_success = None
+   
+            try:        
+                response = self._post(endpoint, payload, {"Authorization": token})  
+                json_data = response.json()                                    
+                if json_data.get('code') == "RCI0000":                   
+                    uploaded_success = json_data.get('code')                   
+                else:
+                    uploaded_success = json_data.get('code')           
+            except Exception as e:
+                logging.error("[ERROR]: %s", e)
+            return uploaded_success          
+            
+        except Exception as e:            
+            logger.error(f"Error during sync status to ralvie: {e}")
+            return {"status": "error_occurred", "message": str(e)}                   
 
     def get_user_credentials(self, userId, token):
         """
@@ -1549,6 +1594,76 @@ class RalvieServerQueue(threading.Thread):
 
             # Wait for the defined interval before trying again, respecting stop events.
             self.wait(SYNC_TIME)
+
+
+class StatusQueue(threading.Thread):
+    def __init__(self, server: ServerAPI) -> None:
+        super().__init__(daemon=True)  # Initialize as a daemon thread
+
+        self.server = server
+        self.connected = False
+        self._stop_event = threading.Event()
+        self._first_connect = False
+
+    def _try_connect(self) -> bool:
+        try:
+            cached_credentials = credentials()
+            if cached_credentials:
+                db_key = cached_credentials.get("encrypted_db_key")
+                user_key = cached_credentials.get("user_key")
+                userId = cached_credentials.get("userId")
+
+                if db_key and user_key and userId:
+                    self.connected = True
+                    return True
+                else:
+                    logger.warning("Missing necessary keys for connection.")
+            self.connected = False
+        except Exception as e:
+            logger.error(f"Failed to connect: {e}")
+            self.connected = False
+        return self.connected
+
+    def wait(self, seconds: int) -> bool:
+        return self._stop_event.wait(seconds)
+
+    def should_stop(self) -> bool:
+        return self._stop_event.is_set()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    def run(self) -> None:
+        # Attempt to establish a connection on start
+        if not self._try_connect():
+            logger.info("Initial connection attempt failed. Will retry.")
+
+        while not self.should_stop():
+            # Check internet connection and attempt to sync
+
+            if is_internet_connected():
+                if not self.connected:
+                    logger.info("Attempting to reconnect...")
+                    self._try_connect()
+
+                if self.connected:
+                    logger.info("Attempting to sync status.")
+                    try:
+                        sync_result_result = self.server.sync_status_to_ralvie()
+                        logger.info(f"Sync status: {sync_result_result}")
+                        if not self._first_connect:
+                            self._first_connect = True 
+                    except Exception as e:
+                        logger.error(f"Error during sync: {e}")
+                else:
+                    logger.warning("Not connected. Retrying in a few seconds.")
+            else:
+                logger.warning("No internet connection. Waiting to retry...")
+
+            if not self._first_connect:
+                self.wait(STATUS_SYNC_FIRST_TIME)
+            else:
+                self.wait(STATUS_SYNC_TIME)
 
 
 class ScreenShotQueue(threading.Thread):

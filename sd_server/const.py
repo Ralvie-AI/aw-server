@@ -5,12 +5,8 @@ from sd_server.version import GIT_COMMIT
 
 PROTOCOL = "https"
 
-SYNC_TIME = 600 # 10 minutes
-SCREEN_SHOT_SYNC_TIME = 60 # 1  minutes
-
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
-
 
 
 GITHUB_COMMIT_ID=f"main/windows_{GIT_COMMIT}"
