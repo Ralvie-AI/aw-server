@@ -1669,14 +1669,14 @@ class StatusQueue(threading.Thread):
 
             if is_internet_connected():
                 if not self.connected:
-                    logger.info("Attempting to reconnect...")
+                    logger.debug("Attempting to reconnect...")
                     self._try_connect()
 
                 if self.connected:
-                    logger.info("Attempting to sync status.")
+                    logger.debug("Attempting to sync status.")
                     try:
                         sync_result_result = self.server.sync_status_to_ralvie()
-                        logger.info(f"Sync status: {sync_result_result}")
+                        logger.debug(f"Sync status: {sync_result_result}")
                         if not self._first_connect:
                             self._first_connect = True 
                     except Exception as e:
