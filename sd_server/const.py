@@ -13,6 +13,8 @@ PUBLIC_KEY = os.path.join(os.path.expanduser("~"),
 
 SYNC_TIME = 600 # 10  minutes
 SCREEN_SHOT_TIME = 60 # 1  minutes
+STATUS_SYNC_TIME = 180 # 3 minutes
+STATUS_SYNC_FIRST_TIME = 30 # 30 seconds
 
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
