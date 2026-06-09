@@ -31,7 +31,7 @@ from sd_core.cache import (get_credentials, add_password, store_credentials,
 from sd_core.util import (encrypt_uuid, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
 from sd_core.const import (CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE, SYNC_TIME, SCREEN_SHOT_SYNC_TIME,
-                            STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME)
+                            STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME, MAX_RETRIES, DELAY_SECONDS, HOST_TO_UPLOAD_SHOT_GET)
 from sd_core.version import RELEASE_VERSION
 from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
@@ -43,10 +43,6 @@ from sd_transform import heartbeat_merge
 from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND, PROTOCOL, REMOTE_HOST)
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 
-HOST_TO_UPLOAD_SHOT_GET = "{protocol}://{host}/web/events/screenshot?fileFormat=json&userId={user_id}&companyId={company_id}"  
-
-MAX_RETRIES = 3
-DELAY_SECONDS = 3  # wait before retry
 
 from .__about__ import __version__
 from .exceptions import NotFound
