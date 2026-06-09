@@ -1534,7 +1534,6 @@ class RalvieServerQueue(threading.Thread):
         super().__init__(daemon=True)  # Initialize as a daemon thread
 
         self.server = server
-        self.userId = ""
         self.connected = False
         self._stop_event = threading.Event()
         self._attempt_reconnect_interval = 10  # Interval between reconnection attempts
@@ -1545,9 +1544,9 @@ class RalvieServerQueue(threading.Thread):
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
                 user_key = cached_credentials.get("user_key")
-                self.userId = cached_credentials.get("userId")
+                userId = cached_credentials.get("userId")
 
-                if db_key and user_key and self.userId:
+                if db_key and user_key and userId:
                     self.connected = True
                     return True
                 else:
@@ -1671,7 +1670,6 @@ class ScreenShotQueue(threading.Thread):
         super().__init__(daemon=True)  # Initialize as a daemon thread
 
         self.server = server
-        self.userId = ""
         self.connected = False
         self._stop_event = threading.Event()          
 
@@ -1681,9 +1679,9 @@ class ScreenShotQueue(threading.Thread):
             if cached_credentials:
                 db_key = cached_credentials.get("encrypted_db_key")
                 user_key = cached_credentials.get("user_key")
-                self.userId = cached_credentials.get("userId")
+                userId = cached_credentials.get("userId")
 
-                if db_key and user_key and self.userId:
+                if db_key and user_key and userId:
                     self.connected = True
                     return True
                 else:
