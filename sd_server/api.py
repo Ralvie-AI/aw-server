@@ -31,7 +31,7 @@ from sd_core.cache import (get_credentials, add_password, store_credentials,
 from sd_core.util import (encrypt_uuid, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
 from sd_core.const import (CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE, SYNC_TIME, SCREEN_SHOT_SYNC_TIME,
-                            STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME, MAX_RETRIES, DELAY_SECONDS, HOST_TO_UPLOAD_SHOT_GET)
+                            STATUS_SYNC_TIME, MAX_RETRIES, DELAY_SECONDS, HOST_TO_UPLOAD_SHOT_GET)
 from sd_core.version import RELEASE_VERSION
 from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
@@ -784,7 +784,8 @@ class ServerAPI:
             
             payload = {"companyId": companyId,
                        "userId": userId,
-                       "email": email}
+                       "email": email,
+                       "timeout": 10}
             endpoint = "/api/v1/sundial/hb/status"
             uploaded_success = None
    
@@ -1598,7 +1599,6 @@ class StatusQueue(threading.Thread):
         self.server = server
         self.connected = False
         self._stop_event = threading.Event()
-        self._first_connect = False
 
     def _try_connect(self) -> bool:
         try:
@@ -1630,6 +1630,9 @@ class StatusQueue(threading.Thread):
 
     def run(self) -> None:
         # Attempt to establish a connection on start
+        if LOGGING_VERBOSE == 1:
+            logger.info("Trying to sync sundial status to server.")
+
         if not self._try_connect():
             logger.info("Initial connection attempt failed. Will retry.")
 
@@ -1644,8 +1647,8 @@ class StatusQueue(threading.Thread):
                 if self.connected:
                     logger.info("Attempting to sync status.")
                     try:
-                        sync_result_result = self.server.sync_status_to_ralvie()
-                        logger.info(f"Sync status: {sync_result_result}")
+                        sync_result_status = self.server.sync_status_to_ralvie()
+                        logger.info(f"Sync status: {sync_result_status}")
                         if not self._first_connect:
                             self._first_connect = True 
                     except Exception as e:
@@ -1655,10 +1658,7 @@ class StatusQueue(threading.Thread):
             else:
                 logger.warning("No internet connection. Waiting to retry...")
 
-            if not self._first_connect:
-                self.wait(STATUS_SYNC_FIRST_TIME)
-            else:
-                self.wait(STATUS_SYNC_TIME)
+            self.wait(STATUS_SYNC_TIME)
 
 
 class ScreenShotQueue(threading.Thread):
