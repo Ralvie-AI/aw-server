@@ -31,7 +31,7 @@ from sd_core.cache import (get_credentials, add_password, store_credentials,
 from sd_core.util import (encrypt_uuid, is_internet_connected, stop_process_by_exe,
                           get_running_path, start_exe, convert_datetime_string)
 from sd_core.const import (CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE, SYNC_TIME, SCREEN_SHOT_SYNC_TIME,
-                            STATUS_SYNC_TIME, MAX_RETRIES, DELAY_SECONDS, HOST_TO_UPLOAD_SHOT_GET)
+                            STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME, MAX_RETRIES, DELAY_SECONDS, HOST_TO_UPLOAD_SHOT_GET)
 from sd_core.version import RELEASE_VERSION
 from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
@@ -1630,35 +1630,46 @@ class StatusQueue(threading.Thread):
 
     def run(self) -> None:
         # Attempt to establish a connection on start
-        if LOGGING_VERBOSE == 1:
-            logger.info("Trying to sync sundial status to server.")
-
         if not self._try_connect():
             logger.info("Initial connection attempt failed. Will retry.")
 
+        # Track if this is our very first pass through the loop
+        is_first_sync_cycle = True
+
         while not self.should_stop():
-            # Check internet connection and attempt to sync
+            try:
+                # Check internet connection and attempt to sync
+                if is_internet_connected():
+                    if not self.connected:
+                        logger.info("Attempting to reconnect...")
+                        self._try_connect()
 
-            if is_internet_connected():
-                if not self.connected:
-                    logger.info("Attempting to reconnect...")
-                    self._try_connect()
-
-                if self.connected:
-                    logger.info("Attempting to sync status.")
-                    try:
-                        sync_result_status = self.server.sync_status_to_ralvie()
-                        logger.info(f"Sync status: {sync_result_status}")
-                        if not self._first_connect:
-                            self._first_connect = True 
-                    except Exception as e:
-                        logger.error(f"Error during sync: {e}")
+                    if self.connected:
+                        logger.info("Attempting to sync status.")
+                        try:
+                            sync_result_status = self.server.sync_status_to_ralvie()
+                            logger.info(f"Sync status: {sync_result_status}")
+                        except Exception as e:
+                            logger.error(f"Error during sync: {e}")
+                    else:
+                        logger.warning("Not connected. Retrying in a few seconds.")
                 else:
-                    logger.warning("Not connected. Retrying in a few seconds.")
-            else:
-                logger.warning("No internet connection. Waiting to retry...")
+                    logger.warning("No internet connection. Waiting to retry...")
+            except Exception as loop_err:
+                # Keeps the thread alive if OS network dropouts raise unhandled errors
+                logger.error(f"Unexpected error in background sync loop: {loop_err}")
 
-            self.wait(STATUS_SYNC_TIME)
+            # Apply the timing logic
+            if is_first_sync_cycle:
+                is_first_sync_cycle = False
+                logger.info("First cycle complete. Waiting 30 seconds before next check.")
+                self.wait(STATUS_SYNC_FIRST_TIME)  # Wait exactly 30 seconds for the first retry/follow-up
+                if LOGGING_VERBOSE == 1:
+                    logger.info(f"Wait to sync sundial status to server at {STATUS_SYNC_FIRST_TIME}.")
+            else:
+                self.wait(STATUS_SYNC_TIME)  # Fall back to standard 3-minute interval
+                if LOGGING_VERBOSE == 1:
+                    logger.info(f"Wait to sync sundial status to server at {STATUS_SYNC_TIME}.")
 
 
 class ScreenShotQueue(threading.Thread):
