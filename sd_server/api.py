@@ -147,12 +147,12 @@ class ServerAPI:
             logger.error(f"Failed to initialize ScreenShotQueue: {e}")
             self.screen_shot_queue = None
 
-        try:
-            self.status_queue = StatusQueue(self)
-            logger.info("StatusQueue initialized successfully.")
-        except Exception as e:
-            logger.error(f"Failed to initialize StatausQueue: {e}")
-            self.status_queue = None
+        # try:
+        #     self.status_queue = StatusQueue(self)
+        #     logger.info("StatusQueue initialized successfully.")
+        # except Exception as e:
+        #     logger.error(f"Failed to initialize StatausQueue: {e}")
+        #     self.status_queue = None
 
 
     def save_settings(self, code, value) -> None:
