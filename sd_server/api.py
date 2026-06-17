@@ -146,15 +146,7 @@ class ServerAPI:
             logger.info("ScreenShotQueue initialized successfully.")
         except Exception as e:
             logger.error(f"Failed to initialize ScreenShotQueue: {e}")
-            self.screen_shot_queue = None
-
-        # try:
-        #     self.status_queue = StatusQueue(self)
-        #     logger.info("StatusQueue initialized successfully.")
-        # except Exception as e:
-        #     logger.error(f"Failed to initialize StatausQueue: {e}")
-        #     self.status_queue = None
-        
+            self.screen_shot_queue = None        
 
     def save_settings(self, code, value) -> None:
         """
@@ -763,45 +755,6 @@ class ServerAPI:
             
         except Exception as e:            
             logger.error(f"Error during sync_events_to_ralvie: {e}")
-            return {"status": "error_occurred", "message": str(e)}
-        
-    def sync_status_to_ralvie(self):
-        try:
-            userId = None                       
-            cached_credentials = get_credentials(CACHE_KEY)
-
-            if cached_credentials is None:
-                logger.info(f"There was no keychain_item_exists.")
-
-            userId = cached_credentials.get('userId')
-            companyId = cached_credentials.get('companyId')
-            token = cached_credentials.get('token')
-            email = cached_credentials.get('email')
-
-            if not userId or not token:
-                logger.warning("User ID or token is missing; unable to sync.")
-                return {"status": "missing_credentials"}           
-            
-            payload = {"companyId": companyId,
-                       "userId": userId,
-                       "email": email,
-                       "timeout": 10}
-            endpoint = "/api/v1/sundial/hb/status"
-            uploaded_success = None
-   
-            try:        
-                response = self._post(endpoint, payload, {"Authorization": token})  
-                json_data = response.json()                                    
-                if json_data.get('code') == "RCI0000":                   
-                    uploaded_success = json_data.get('code')                   
-                else:
-                    uploaded_success = json_data.get('code')           
-            except Exception as e:
-                logging.error("[ERROR]: %s", e)
-            return uploaded_success          
-            
-        except Exception as e:            
-            logger.error(f"Error during sync status to ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}                   
 
     def get_user_credentials(self, userId, token):
@@ -1590,87 +1543,6 @@ class RalvieServerQueue(threading.Thread):
 
             # Wait for the defined interval before trying again, respecting stop events.
             self.wait(SYNC_TIME)
-
-
-class StatusQueue(threading.Thread):
-    def __init__(self, server: ServerAPI) -> None:
-        super().__init__(daemon=True)  # Initialize as a daemon thread
-
-        self.server = server
-        self.connected = False
-        self._stop_event = threading.Event()
-
-    def _try_connect(self) -> bool:
-        try:
-            cached_credentials = credentials()
-            if cached_credentials:
-                db_key = cached_credentials.get("encrypted_db_key")
-                user_key = cached_credentials.get("user_key")
-                userId = cached_credentials.get("userId")
-
-                if db_key and user_key and userId:
-                    self.connected = True
-                    return True
-                else:
-                    logger.warning("Missing necessary keys for connection.")
-            self.connected = False
-        except Exception as e:
-            logger.error(f"Failed to connect: {e}")
-            self.connected = False
-        return self.connected
-
-    def wait(self, seconds: int) -> bool:
-        return self._stop_event.wait(seconds)
-
-    def should_stop(self) -> bool:
-        return self._stop_event.is_set()
-
-    def stop(self) -> None:
-        self._stop_event.set()
-
-    def run(self) -> None:
-        # Attempt to establish a connection on start
-        if not self._try_connect():
-            logger.info("Initial connection attempt failed. Will retry.")
-
-        # Track if this is our very first pass through the loop
-        is_first_sync_cycle = True
-
-        while not self.should_stop():
-            try:
-                # Check internet connection and attempt to sync
-                if is_internet_connected():
-                    if not self.connected:
-                        logger.info("Attempting to reconnect...")
-                        self._try_connect()
-
-                    if self.connected:
-                        logger.info("Attempting to sync status.")
-                        try:
-                            sync_result_status = self.server.sync_status_to_ralvie()
-                            logger.info(f"Sync status: {sync_result_status}")
-                        except Exception as e:
-                            logger.error(f"Error during sync: {e}")
-                    else:
-                        logger.warning("Not connected. Retrying in a few seconds.")
-                else:
-                    logger.warning("No internet connection. Waiting to retry...")
-            except Exception as loop_err:
-                # Keeps the thread alive if OS network dropouts raise unhandled errors
-                logger.error(f"Unexpected error in background sync loop: {loop_err}")
-
-            # Apply the timing logic
-            if is_first_sync_cycle:
-                is_first_sync_cycle = False
-                logger.info("First cycle complete. Waiting 30 seconds before next check.")
-                self.wait(STATUS_SYNC_FIRST_TIME)  # Wait exactly 30 seconds for the first retry/follow-up
-                if LOGGING_VERBOSE == 1:
-                    logger.info(f"Wait to sync sundial status to server at {STATUS_SYNC_FIRST_TIME}.")
-            else:
-                self.wait(STATUS_SYNC_TIME)  # Fall back to standard 3-minute interval
-                if LOGGING_VERBOSE == 1:
-                    logger.info(f"Wait to sync sundial status to server at {STATUS_SYNC_TIME}.")
-
 
 class ScreenShotQueue(threading.Thread):
     def __init__(self, server: ServerAPI) -> None:
