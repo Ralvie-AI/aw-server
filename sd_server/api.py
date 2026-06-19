@@ -624,7 +624,9 @@ class ServerAPI:
                     continue 
                 ocr_data.append(data)
 
-            # logger.info(f"orc_data => {ocr_data}")
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"orc_data => {ocr_data}")
+
             screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)            
             
             payload = {"userId": userId, 
@@ -652,7 +654,13 @@ class ServerAPI:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
                     # response = self._post(endpoint, payload)
-                    json_data = response.json()                    
+                    if LOGGING_VERBOSE:
+                        logger.info(f"response => {response}")            
+
+                    json_data = response.json()
+
+                    if LOGGING_VERBOSE:
+                        logger.info(f"json_data => {json_data}")            
                     
                     if json_data.get('code') == "RCI0000":
                         record.sync_status = 1
@@ -754,7 +762,7 @@ class ServerAPI:
             return uploaded_success          
             
         except Exception as e:            
-            logger.error(f"Error during sync_events_to_ralvie: {e}")
+            logger.error(f"Error during sync screenshot to ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}                   
 
     def get_user_credentials(self, userId, token):
@@ -1593,10 +1601,16 @@ class ScreenShotQueue(threading.Thread):
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=REMOTE_HOST, user_id=userId, company_id=companyId )
-                # logger.info(f"url => {url}")
+
+                if LOGGING_VERBOSE == 1:
+                    logger.info(f"url => {url}")
+
                 res = requests.get(url, headers=headers)
-                data = res.json()                
-                # logger.info(f"result get_pre_signed_url => {data}")
+                data = res.json()      
+
+                if LOGGING_VERBOSE == 1:
+                    logger.info(f"result get_pre_signed_url => {data}")
+
                 if data.get('code') == REJECTED_SYNC_STATUS:
                     result = None, None, REJECTED_SYNC_STATUS
                 else:
@@ -1610,24 +1624,12 @@ class ScreenShotQueue(threading.Thread):
                     time.sleep(DELAY_SECONDS)
         return result 
        
-    def update_object_key_file(self, url_path):
-        for attempt in range(1, MAX_RETRIES + 1):
-            try:
-                res = requests.put(url_path)
-                data = res.json()
-                logging.info(f"Upload failed with status code: {data.get('code')}")
-                logging.info(f"Url to download: {data.get('data').get('url')}")
-                break
-            except Exception as e:
-                logging.error("[ERROR]: %s", e)
-                if attempt == MAX_RETRIES:
-                    logging.info("Failed after retries.")
-                else:
-                    time.sleep(DELAY_SECONDS)
-
     def upload_screenshot(self, file_path, presigned_url):
 
         try:
+            if LOGGING_VERBOSE:
+                logging.info(f"upload_screenshot file_path => {file_path}")
+                logging.info(f"upload_screenshot presigned_url => {presigned_url}")
             # Open the file in binary mode
             with open(file_path, 'rb') as file_obj:
                 # Perform HTTP PUT request to upload file
