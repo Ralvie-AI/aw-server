@@ -590,6 +590,12 @@ class ServerAPI:
         file_date_time = re.sub(r"^[^_]+_|\.json$", "", filename)
         dt = datetime.strptime(file_date_time, "%Y-%m-%dT%H-%M-%S.%fZ")
         return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def is_empty(self, record):
+        if record.event.application_name is None or record.event.application_name.strip() == "" or not len(record.event.application_name) > 2 :
+            return record.event.app
+        else:
+            return record.event.application_name
         
     def sync_screenshot_to_ralvie(self, object_key, record):
         try:
@@ -635,7 +641,7 @@ class ServerAPI:
                        "eventId": record.event.eventId.hex,
                        "duration": float(record.event.duration),
                         "data": afk_dict,
-                        "applicationName": record.event.application_name,         
+                        "applicationName": self.is_empty(record),         
                         "screenshotObjectkey": object_key,
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": screenshot_capture_time,
@@ -653,7 +659,7 @@ class ServerAPI:
                 try:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
-                    # response = self._post(endpoint, payload)
+
                     if LOGGING_VERBOSE == 1:
                         logger.info(f"response => {response}")            
 
@@ -665,7 +671,6 @@ class ServerAPI:
                     if json_data.get('code') == "RCI0000":
                         record.sync_status = 1
                         record.save()
-                        # logging.info(f"save record {record}")
                         uploaded_success = json_data.get('code')                   
                     else:
                         uploaded_success = json_data.get('code')
@@ -682,88 +687,7 @@ class ServerAPI:
             
         except Exception as e:            
             logger.error(f"Error during sync screenshot to ralvie: {e}")
-            return {"status": "error_occurred", "message": str(e)}
-        
-    
-    def retry_sync_screenshot_to_ralvie(self, object_key, record):
-        try:
-
-            json_datastr = json.loads(record.event.datastr)
-            userId = None
-            logger.info(f"Restry sync screenshot User ID from load_key: {userId}")
-            cached_credentials = get_credentials(CACHE_KEY)
-
-            if cached_credentials is None:
-                logger.info(f"There was no keychain_item_exists.")
-
-            userId = cached_credentials.get('userId')
-            companyId = cached_credentials.get('companyId')
-            token = cached_credentials.get('token')
-
-            if not userId or not token:
-                logger.warning("User ID or token is missing; unable to sync.")
-                return {"status": "missing_credentials"}
-           
-            afk_dict = {}
-            if 'status' in json_datastr and json_datastr.get('status') == "afk":
-                afk_dict["app"] = record.event.app
-                afk_dict["title"] = record.event.title
-                afk_dict["status"] = "afk"                
-            else:
-                afk_dict["app"] = record.event.app
-                afk_dict["title"] = record.event.title
-
-            ocr_data = []
-            ocr_text_json = json.loads(record.ocr_text)
-            for data in ocr_text_json.get('data'):
-                if len(data.get('text')) == 1:
-                    continue 
-                ocr_data.append(data)
-
-            screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)   
-
-            payload = {"userId": userId, 
-                       "companyId": companyId,    
-                        "startTime":  convert_datetime_string(record.event.timestamp),
-                       "eventId": record.event.eventId.hex,
-                       "duration": float(record.event.duration),
-                        "data": afk_dict,
-                        "applicationName": record.event.application_name,         
-                        "screenshotObjectkey": object_key,
-                        "screenshotCaptureMethod": "AUTO",
-                        "screenshotCaptureTime": screenshot_capture_time,
-                        "ocrText": ocr_data,
-                        "clientTimeZone": str(get_localzone()),
-                        "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
-                        }
-
-            # logger.info(f"payload info => {payload}")
-            endpoint = "/web/events/screenshot"
-            uploaded_success = None
-            for attempt in range(1, MAX_RETRIES + 1):
-                try:
-                    logging.info(f"attempt => {attempt}")
-                    response = self._post(endpoint, payload, {"Authorization": token})   
-                    json_data = response.json()                   
-                    
-                    if json_data.get('code') == "RCI0000":
-                        record.sync_status = 1
-                        record.save()
-                        # logging.info(f"save record {record}")
-                        uploaded_success = json_data.get('code')                   
-
-                    break
-                except Exception as e:
-                    logging.error("[ERROR]: %s", e)
-                    if attempt == MAX_RETRIES:
-                        logging.info("Failed after retries.")
-                    else:
-                        time.sleep(DELAY_SECONDS)
-            return uploaded_success          
-            
-        except Exception as e:            
-            logger.error(f"Error during sync screenshot to ralvie: {e}")
-            return {"status": "error_occurred", "message": str(e)}                   
+            return {"status": "error_occurred", "message": str(e)}                    
 
     def get_user_credentials(self, userId, token):
         """
@@ -1661,17 +1585,14 @@ class ScreenShotQueue(threading.Thread):
 
         while not self.should_stop():
             # Check internet connection and attempt to sync
-            # print("is_internet_connected()", is_internet_connected())
             if is_internet_connected():
                 if not self.connected:
-                    logger.info("Attempting to reconnect...")
+                    logger.info("Attempting to reconnect to sync screenshot...")
                     self._try_connect()
-                # print("self.connected ", self.connected)
+
                 if self.connected:
-                    # logger.info("Connected to internet. Attempting to sync screenshot.")
                     response_code = None
                     try:
-                        # logger.info(f"self.server.db.get_screenshot_record() length => {len(self.server.db.get_screenshot_record())}")
                         for record in self.server.db.get_screenshot_record():
 
                             # check if record.file_path file type is png
@@ -1709,11 +1630,9 @@ class ScreenShotQueue(threading.Thread):
                                     logger.info(f"Error: {e}")
                             
                             
-                            if not record.ocr_text:                                
-                                # logger.info(f"record.file_path => {record.file_path}")
+                            if not record.ocr_text:
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
-                                # logger.info(f"screenshot_file => {screenshot_file}")
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
                                 file_location = get_running_path()
                                 sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity/sd-ocr-activity.exe")   
@@ -1723,7 +1642,6 @@ class ScreenShotQueue(threading.Thread):
                                         "--image_path", screenshot_file,
                                         "--screenshot_id", str(record.id),                                        
                                     ]
-                                # logger.info(f"command_list => {command_list}")
                                 start_exe(command_list, timeout_sec=50)
                                 # ocr_result = self.orc.run_ocr(img_path=screenshot_file)
                                 # logger.info(f'result => {ocr_result}')
@@ -1746,9 +1664,7 @@ class ScreenShotQueue(threading.Thread):
                                 if sync_result == "RCI0000":
                                     logger.info(f"record.sync_status after => {record.sync_status}")
                                     if record.sync_status == 1:
-                                        # logger.info(f"dir => {dir(record)}")
-                                        img_file_path = record.file_path
-                                        # logger.info(f"img_file_path => {img_file_path}")
+                                        img_file_path = record.file_path   
                                         os.remove(img_file_path)
 
                                         # Delete the screenshot file
@@ -1757,25 +1673,7 @@ class ScreenShotQueue(threading.Thread):
                                         screenshot_file_ocr = f"{tmp_file_path}_ocr.png"
                                         os.remove(screenshot_file)
                                         os.remove(screenshot_file_ocr)
-                                        record.delete_instance()
-                            else:
-                                if record.object_key:
-                                    sync_result = self.server.retry_sync_screenshot_to_ralvie(record.object_key, record)
-                                    logger.info(f"result url retry => {sync_result}")
-                                    if sync_result == "RCI0000":
-                                        logger.info(f"record.sync_status after => {record.sync_status}")
-                                        logger.info(f"record.object_key after => {record.object_key}")
-                                        if record.sync_status == 1 and record.ocr_text:
-                                            # logger.info(f"dir retry => {dir(record)}")
-                                            img_file_path = record.file_path
-                                            # logger.info(f"img_file_path retry => {img_file_path}")
-                                            os.remove(img_file_path)
-                                            tmp_file_path, ext = os.path.splitext(img_file_path)
-                                            screenshot_file = f"{tmp_file_path}.png"
-                                            screenshot_file_ocr = f"{tmp_file_path}_ocr.png"
-                                            os.remove(screenshot_file)
-                                            os.remove(screenshot_file_ocr)                                            
-                                            record.delete_instance()
+                                        record.delete_instance()                            
 
                         if response_code == REJECTED_SYNC_STATUS:
 
