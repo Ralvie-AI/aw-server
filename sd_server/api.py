@@ -490,7 +490,7 @@ class ServerAPI:
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events}
 
-                if LOGGING_VERBOSE != 0:
+                if LOGGING_VERBOSE == 1:
                     logger.info(f"events payload => {payload}")
 
                 endpoint = "/web/event"
@@ -644,7 +644,7 @@ class ServerAPI:
                         "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         }
 
-            if LOGGING_VERBOSE != 0:
+            if LOGGING_VERBOSE == 1:
                 logger.info(f"screenshot payload => {payload}")
 
             endpoint = "/web/events/screenshot"
@@ -654,12 +654,12 @@ class ServerAPI:
                     logging.info(f"attempt => {attempt}")
                     response = self._post(endpoint, payload, {"Authorization": token})
                     # response = self._post(endpoint, payload)
-                    if LOGGING_VERBOSE:
+                    if LOGGING_VERBOSE == 1:
                         logger.info(f"response => {response}")            
 
                     json_data = response.json()
 
-                    if LOGGING_VERBOSE:
+                    if LOGGING_VERBOSE == 1:
                         logger.info(f"json_data => {json_data}")            
                     
                     if json_data.get('code') == "RCI0000":
@@ -1627,7 +1627,7 @@ class ScreenShotQueue(threading.Thread):
     def upload_screenshot(self, file_path, presigned_url):
 
         try:
-            if LOGGING_VERBOSE:
+            if LOGGING_VERBOSE == 1:
                 logging.info(f"upload_screenshot file_path => {file_path}")
                 logging.info(f"upload_screenshot presigned_url => {presigned_url}")
             # Open the file in binary mode
@@ -1731,10 +1731,11 @@ class ScreenShotQueue(threading.Thread):
                                 # self.server.db.update_ocr_text(record.id, ocr_result)
                                 break
 
-                            if LOGGING_VERBOSE != 0:
+                            if LOGGING_VERBOSE == 1:
                                 logger.info(f"record.ocr_text => {record.ocr_text}")
 
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
+                 
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
                                 response_code = REJECTED_SYNC_STATUS
                                 break                       
