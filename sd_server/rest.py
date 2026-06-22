@@ -2,7 +2,6 @@ import sys
 import getpass
 import json
 import traceback
-import platform
 from functools import wraps
 from threading import Lock
 from typing import Dict
@@ -22,20 +21,23 @@ from flask import (
     send_from_directory,
 )
 
-from sd_core.launch_start import delete_launch_app, launch_app, set_autostart_registry
-from sd_core.util import authenticate, is_internet_connected, reset_user
-from sd_core.const import SETTINGS_CACHE_KEY, LOGGING_VERBOSE
+from sd_core.launch_start import (delete_launch_app, 
+                                  launch_app, 
+                                  set_autostart_registry)
+from sd_core.util import (authenticate, 
+                          is_internet_connected, 
+                          reset_user)
+from sd_core.const import (SETTINGS_CACHE_KEY, 
+                           LOGGING_VERBOSE, 
+                           APPLICATION_CACHE_KEY)
 from sd_core import schema, db_cache
 from sd_core.models import Event
 from sd_core.cache import credentials
 from sd_query.exceptions import QueryException
+from sd_core.os_util import is_windows
 from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
-# from sd_qt.manager import Manager
-
-application_cache_key = "application_cache"
-# manager = Manager()
 
 
 def get_potential_location_and_zone(minutes_difference):
@@ -832,9 +834,9 @@ def blocked_list():
     blocked_apps = {"app": [], "url": []}
 
     # Retrieve application blocking information from the cache
-    application_blocked = db_cache.retrieve(application_cache_key)
+    application_blocked = db_cache.retrieve(APPLICATION_CACHE_KEY)
     if not application_blocked:
-        db_cache.store(application_cache_key,
+        db_cache.store(APPLICATION_CACHE_KEY,
                        current_app.api.application_list())
 
     if application_blocked:
@@ -844,7 +846,7 @@ def blocked_list():
             if app_info.get('is_blocked', False):
                 # If the application is blocked, append its name to the 'app' list in blocked_apps
                 app_name = app_info['name']
-                if platform.system() == 'Windows':
+                if is_windows():
                     app_name += ".exe"  # Append ".exe" for Windows
                 blocked_apps['app'].append(app_name)
 
@@ -1131,105 +1133,6 @@ class LogResource(Resource):
          @return 200 OK with log ( dict ) 400 Bad Request if log does not
         """
         return current_app.api.get_log(), 200
-
-
-# @api.route('/0/start/')
-# class StartModule(Resource):
-#     @api.doc(security="Bearer")
-#     @api.doc(params={"module": "Module Name", })
-#     def get(self):
-#         """
-#          Start modules on the server. This will return a message to the client indicating that the module has started.
-
-
-#          @return JSON with the message that was sent to the client
-#         """
-#         module_name = request.args.get("module")
-#         message = manager.start_modules(module_name)
-#         return jsonify({"message": message})
-
-
-# @api.route('/0/stop/')
-# class StopModule(Resource):
-#     @api.doc(security="Bearer")
-#     @api.doc(params={"module": "Module Name", })
-#     def get(self):
-#         """
-#          Stop a module by name. This is a GET request to / v1 / modules / : id
-
-
-#          @return JSON with message to
-#         """
-#         module_name = request.args.get("module")
-#         message = manager.stop_modules(module_name)
-#         return jsonify({"message": message})
-
-
-# @api.route('/0/status')
-# class Status(Resource):
-#     @api.doc(security="Bearer")
-#     def get(self):
-#         """
-#          Get list of modules. This is a GET request to / modules. The response is a JSON object with a list of modules.
-
-
-#          @return a JSON object with a list of modules in the
-#         """
-#         modules = manager.status()
-
-#         return jsonify(modules)
-
-
-# @api.route('/0/idletime')
-# class Idletime(Resource):
-#     @api.doc(security="Bearer")
-#     def get(self):
-#         """
-#         Manage the idle time state by starting or stopping the 'sd-watcher-afk' module.
-
-#         The 'status' query parameter controls whether the module is started or stopped:
-#         - If 'status' is 'start', the module is started.
-#         - If 'status' is 'stop', the module is stopped.
-
-#         @return a JSON object with a message indicating the new state.
-#         """
-
-#         try:
-#             module = manager.module_status("sd-watcher-afk")
-#             status = request.args.get("status")
-
-#             if module is None or "is_alive" not in module:
-#                 return {"message": "Module status could not be retrieved"}, 500
-#             state = False
-#             # Check the status argument and start/stop the module accordingly
-#             if status == "start":
-#                 if not module["is_alive"]:
-#                     manager.start("sd-watcher-afk")
-#                     message = "Idle time has started"
-#                     state = True
-#                 else:
-#                     message = "Idle time is already running"
-#                     state = True
-#             elif status == "stop":
-#                 if module["is_alive"]:
-#                     manager.stop("sd-watcher-afk")
-#                     message = "Idle time has stopped"
-#                     state = False
-#                 else:
-#                     message = "Idle time is already stopped"
-#                     state = False
-#             else:
-#                 return {"message": "Invalid status parameter. Use 'start' or 'stop'."}, 400
-
-#             # Save the new idle time state in the settings
-#             current_app.api.save_settings("idle_time", state)
-#             return {"message": message}, 200
-
-#         except Exception as e:
-#             logger.error(f"Error handling idle time: {str(e)}")
-#             return {"message": "An error occurred while managing idle time."}, 500
-
-
 
 @api.route('/0/credentials')
 class User(Resource):
