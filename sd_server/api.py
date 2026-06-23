@@ -1672,8 +1672,11 @@ class ScreenShotQueue(threading.Thread):
                                 if LOGGING_VERBOSE == 1:                                    
                                     logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text => {screenshot.ocr_text}")
 
-                                if not screenshot and screenshot.ocr_text:
-                                    break 
+                                logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text length => {len(screenshot.ocr_text)}")
+
+                                if screenshot.ocr_text is None:
+                                    break
+
                                 record = screenshot
 
                             if LOGGING_VERBOSE == 1:
