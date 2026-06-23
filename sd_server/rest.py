@@ -1,4 +1,3 @@
-import sys
 import getpass
 import json
 import traceback
@@ -21,9 +20,7 @@ from flask import (
     send_from_directory,
 )
 
-from sd_core.launch_start import (delete_launch_app, 
-                                  launch_app, 
-                                  set_autostart_registry)
+
 from sd_core.util import (authenticate, 
                           is_internet_connected, 
                           reset_user)
@@ -308,52 +305,6 @@ class CompanyResource(Resource):
             return json.loads(companyResult.text), companyResult.status_code
 
 
-# Login by system credentials
-@api.route("/0/login")
-class LoginResource(Resource):
-    def post(self):
-        """
-         Authenticate and encode user credentials. This is a POST request to / api / v1 / Sundial
-
-
-         @return Response code and JSON
-        """
-        data = request.get_json()
-        cached_credentials = credentials()
-        user_key = cached_credentials.get("user_key")
-
-        # Returns a JSON object with the user_key data.
-        if user_key:
-            # Authenticates the user with the given data.
-            if authenticate(data['userName'], data['password']):
-                encoded_jwt = jwt.encode({"user": data['userName'], "email": cached_credentials.get("email"),
-                                          "phone": cached_credentials.get("phone")}, user_key, algorithm="HS256")
-                return {"code": "SDI0000", "message": "Success", "data": {"token": encoded_jwt}}, 200
-            else:
-                return {"code": "SDE0000", "message": "Username or password is wrong"}, 200
-        else:
-            return {"message": "User does not exist"}, 200
-
-    def get(self):
-        """
-         Get method for Sundial. json API. This method is used to check if user exist or not.
-
-
-         @return 200 if user exist 401 if user does not exist
-        """
-        cached_credentials = credentials()
-        # Returns the encrypted_db_key if the cached credentials are cached.
-        if cached_credentials is not None:
-            user_key = cached_credentials.get("encrypted_db_key")
-        else:
-            user_key = None
-        # Returns a 200 if user_key is not found 401 if user_key is not present
-        if user_key:
-            return {"message": "User exist"}, 200
-        else:
-            return {"message": "User does not exist"}, 401
-
-
 # Login by ralvie cloud
 @api.route("/0/ralvie/login")
 class RalvieLoginResource(Resource):
@@ -366,7 +317,6 @@ class RalvieLoginResource(Resource):
         """
         refresh_token = ""
         # Check Internet Connectivity
-        response_data = {}
         # If the internet is not connected return a 200 error message.
         if not is_internet_connected():
             return jsonify({"message": "Please connect to the internet and try again."}), 200
@@ -877,20 +827,6 @@ class BucketExportResource(Resource):
         return response
 
 
-@api.route("/0/user_details")
-class UserDetails(Resource):
-    @copy_doc(ServerAPI.get_user_details)
-    def get(self):
-        """
-         Get user details. This is a view that can be used to retrieve user details from the API.
-
-
-         @return A dictionary of user details keyed by user id. Example request **. : http Example response **
-        """
-        user_details = current_app.api.get_user_details()
-        return user_details
-
-
 @api.route("/0/import")
 class ImportAllResource(Resource):
     @api.expect(buckets_export)
@@ -1242,48 +1178,7 @@ class SyncServer(Resource):
             return {"message": "Internal server error"}, 500
 
 
-@api.route("/0/launchOnStart")
-class LaunchOnStart(Resource):
-    @api.doc(security="Bearer")
-    def get(self):
-        status = request.args.get("status", type=str)  # Expecting status as a query parameter
-
-        if status is None:
-            return {"error": "Status is required in the request query."}, 400
-
-        # Convert status to boolean
-        status = status.lower() in ["start"]
-
-        if sys.platform == "darwin":
-            if status:
-                launch_app()  # Ensure this function is defined
-                state = True
-                current_app.api.save_settings("launch", state)
-                return {"message": "Launch on start enabled."}, 200
-            else:
-                state = False
-                delete_launch_app()  # Ensure this function is defined
-                current_app.api.save_settings("launch", state)
-                return {"message": "Launch on start disabled."}, 200
-
-        elif sys.platform == "win32":
-            if status:
-                state = True
-                set_autostart_registry(autostart=True)  # Ensure this function is defined
-                current_app.api.save_settings("launch", state)
-                return {"message": "Launch on start enabled."}, 200
-            else:
-                state = False
-                set_autostart_registry(autostart=False)  # Ensure this function is defined
-                current_app.api.save_settings("launch", state)
-                return {"message": "Launch on start disabled."}, 200
-
-        else:
-            return {"error": "Unsupported platform."}, 400  # Handle unsupported platforms
-
 # Refresh token
-
-
 @api.route("/0/ralvie/refresh_token")
 class RalvieTokenRefreshResource(Resource):
     def put(self):
@@ -1312,55 +1207,6 @@ class RalvieTokenRefreshResource(Resource):
         else:
             return {"code": json.loads(auth_result.text)["code"], "message": json.loads(auth_result.text)["message"],
                     "data": json.loads(auth_result.text)["data"]}, 200
-
-
-@api.route("/0/user/profile")
-class UpdateUserProfile(Resource):
-
-    def put(self):
-        # Get the URL from the request
-        access_token = request.form.get('access_token')
-
-        # Get the file from the request
-        file = request.files['file']
-
-        return current_app.api.update_user_profile(access_token, file)
-
-
-@api.route("/0/user/<string:token>")
-class UserDetailsById(Resource):
-    @copy_doc(ServerAPI.get_user_by_id)
-    def get(self, token):
-        """
-         Get user details. This is a view that can be used to retrieve user details from the API.
-
-         @param token: The token associated with the user.
-         @return A dictionary of user details keyed by user id. Example request **. : http Example response **
-        """
-        return current_app.api.get_user_by_id(token)
-
-
-@api.route("/0/user/profile_photo/<string:token>")
-class DeleteUserProfilePhoto(Resource):
-    @copy_doc(ServerAPI.delete_user_profile_photo)
-    def delete(self, token):
-        """
-         Delete user profile phot.
-
-         @param token: The token associated with the user.
-         @return Success response or failure response. Example request **. : http Example response **
-        """
-        return current_app.api.delete_user_profile_photo(token)
-
-
-@api.route("/0/init_db")
-class initdb(Resource):
-    def get(self):
-        init_db = current_app.api.init_db()
-        if not init_db:
-            print("Error")
-        else:
-            print("Success")
 
 
 @api.route("/0/server_status")
