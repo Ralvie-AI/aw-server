@@ -26,12 +26,26 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
 
-from sd_core.cache import (get_credentials, add_password, store_credentials, 
+from sd_core.cache import (get_credentials, 
+                           add_password, 
+                           store_credentials, 
                            credentials)
-from sd_core.util import (encrypt_uuid, is_internet_connected, stop_process_by_exe,
-                          get_running_path, start_exe, convert_datetime_string)
-from sd_core.const import (CACHE_KEY, PUBLIC_KEY, DEVELOPMENT_MODE, LOGGING_VERBOSE, SYNC_TIME, SCREEN_SHOT_SYNC_TIME,
-                            MAX_RETRIES, DELAY_SECONDS, HOST_TO_UPLOAD_SHOT_GET)
+from sd_core.util import (encrypt_uuid, 
+                          is_internet_connected, 
+                          stop_process_by_exe,
+                          get_running_path, 
+                          start_exe, 
+                          convert_datetime_string)
+from sd_core.const import (CACHE_KEY, 
+                           PUBLIC_KEY, 
+                           DEVELOPMENT_MODE, 
+                           LOGGING_VERBOSE, 
+                           SYNC_TIME, 
+                           SCREEN_SHOT_SYNC_TIME,
+                           MAX_RETRIES, 
+                           DELAY_SECONDS, 
+                           HOST_TO_UPLOAD_SHOT_GET, 
+                           OCR_SLEEP_TIME)
 from sd_core.version import RELEASE_VERSION
 from sd_core.system_uuid import get_uuid_address
 from sd_core.dirs import get_data_dir
@@ -40,7 +54,11 @@ from sd_core.models import Event
 from sd_core.os_util import send_to_gui
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.const import (SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, NO_USER_FOUND, PROTOCOL, REMOTE_HOST)
+from sd_server.const import (SUCCESSFUL_SYNC_STATUS, 
+                             REJECTED_SYNC_STATUS, 
+                             NO_USER_FOUND, 
+                             PROTOCOL, 
+                             REMOTE_HOST)
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 
 
@@ -1647,7 +1665,16 @@ class ScreenShotQueue(threading.Thread):
                                 # logger.info(f'result => {ocr_result}')
                                 # logger.info(f'result type=> {type(ocr_result)}')
                                 # self.server.db.update_ocr_text(record.id, ocr_result)
-                                break
+                                time.sleep(OCR_SLEEP_TIME)
+
+                                screenshot = self.server.db.get_screenshot_by_id(record.id)
+
+                                if LOGGING_VERBOSE == 1:                                    
+                                    logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text => {screenshot.ocr_text}")
+
+                                if not screenshot and screenshot.ocr_text:
+                                    break 
+                                record = screenshot
 
                             if LOGGING_VERBOSE == 1:
                                 logger.info(f"record.ocr_text => {record.ocr_text}")
