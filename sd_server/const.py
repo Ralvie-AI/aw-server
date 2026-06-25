@@ -19,7 +19,7 @@ STATUS_SYNC_FIRST_TIME = 30 # 30 seconds
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
 
-TMP_VERSION = "1.3.2"
+TMP_VERSION = "1.3.3"
 if STAGING == 1:
     HOST = HOST_DEV
     VERSION_DISPLAY = f"{TMP_VERSION}_beta"
