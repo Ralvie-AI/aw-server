@@ -7,8 +7,10 @@ from flask import (
     Blueprint,
     current_app,
     jsonify,
-    request
+    request,
+    abort,
 )
+import psutil
 from playhouse.shortcuts import model_to_dict
 
 from sd_core.const import PUBLIC_KEY
@@ -17,12 +19,50 @@ from sd_core.system_uuid import get_uuid_address
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm, validate_public_key_file
 
 
+ALLOWED_PROCESSES = {
+    "sd-pixel-engine.exe",
+    "sd-ocr-activity.exe"
+}
+
+
+def is_request_from_allowed_process():
+    
+    if request.remote_addr not in ('127.0.0.1', 'localhost'):
+        return False
+        
+    client_port = request.environ.get('REMOTE_PORT')
+    if not client_port:
+        return False
+        
+    client_port = int(client_port)
+
+
+    for conn in psutil.net_connections(kind='inet'):
+        if conn.laddr.port == client_port:
+            try:
+                process = psutil.Process(conn.pid)
+                process_name = process.name().lower()
+                
+                # Check if the process name is in our allowed list
+                if process_name in ALLOWED_PROCESSES:
+                    print(f"[ACCESS GRANTED] Verified request from: {process_name} (PID: {conn.pid})")
+                    return True
+                    
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+                
+    return False
+
+
 logger = logging.getLogger(__name__)
 
 blueprint = Blueprint("screenshot", __name__, url_prefix="/screenshot")
 
 @blueprint.route('/', methods=['POST'])
 def screenshot():
+
+    if not is_request_from_allowed_process():
+        abort(403, description="Forbidden: Request must originate from sd-pixel-engine.exe")
 
     json_data = request.get_json()  # Expects Content-Type: application/json
     if not json_data:
@@ -108,6 +148,9 @@ def screenshot():
 
 @blueprint.route('/get_event_time_range', methods=['POST'])
 def get_event_time_range():
+
+    if not is_request_from_allowed_process():
+        abort(403, description="Forbidden: Request must originate from sd-pixel-engine.exe")
     
     json_data = request.get_json()  # Expects Content-Type: application/json
     if not json_data:
@@ -144,6 +187,9 @@ def get_event_time_range():
 
 @blueprint.route('/update_ocr_text', methods=['POST'])
 def update_ocr_text():
+
+    if not is_request_from_allowed_process():
+        abort(403, description="Forbidden: Request must originate from sd-ocr-activity.exe")
     
     json_data = request.get_json()  # Expects Content-Type: application/json
     if not json_data:
