@@ -47,8 +47,6 @@ from sd_core.const import (
     LOGGING_VERBOSE, 
     SYNC_TIME, 
     SCREEN_SHOT_SYNC_TIME,
-    MAX_RETRIES, 
-    DELAY_SECONDS, 
     HOST_TO_UPLOAD_SHOT_GET, 
     OCR_SLEEP_TIME,
     )
@@ -514,7 +512,7 @@ class ServerAPI:
                     data["clientTimeZone"] = local_zone
                     data["sundial_version"] = RELEASE_VERSION 
                     
-                payload = {"userId": userId, "companyId": companyId, "events": events}
+                payload = {"userId": userId, "companyId": companyId, "events": events, "timeout": 60}
 
                 if LOGGING_VERBOSE == 1:
                     logger.info(f"events payload => {payload}")
@@ -606,7 +604,8 @@ class ServerAPI:
                     return {"status": "sync_failed", "error": response.text}
             else:
                 logger.info("No events to sync.")
-                return {"status": "no_events"}
+                return {"status": "no_events"}        
+
         except Exception as e:
             logger.error(f"Error during sync_events_to_ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}
@@ -622,7 +621,15 @@ class ServerAPI:
             return record.event.app
         else:
             return record.event.application_name
-        
+
+    def get_local_capture_at(self, local_time_zone, record):
+        if record.local_capture_at:
+            return record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            utc_dt = datetime.fromisoformat(record.created_at)
+            local_dt = utc_dt.astimezone(local_time_zone)
+            return local_dt.strftime("%Y-%m-%d %H:%M:%S")
+
     def sync_screenshot_to_ralvie(self, object_key, record):
         try:
             userId = None 
@@ -659,7 +666,11 @@ class ServerAPI:
             if LOGGING_VERBOSE == 1:
                 logger.info(f"orc_data => {ocr_data}")
 
-            screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)            
+            screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)      
+            # logger.info(f"record.local_capture_at => {record.local_capture_at}, type => {type(record.local_capture_at)}")      
+            # logger.info(f"record.created_at => {record.created_at}, type => {type(record.created_at)}")
+
+            local_time_zone = str(get_localzone())
             
             payload = {"userId": userId, 
                        "companyId": companyId,    
@@ -672,8 +683,9 @@ class ServerAPI:
                         "screenshotCaptureMethod": "AUTO",
                         "screenshotCaptureTime": screenshot_capture_time,
                         "ocrText": ocr_data,
-                        "clientTimeZone": str(get_localzone()),
-                        "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        "clientTimeZone": local_time_zone,
+                        "local_capture_at": self.get_local_capture_at(local_time_zone, record),
+                        "timeout": 40,
                         }
 
             if LOGGING_VERBOSE == 1:
@@ -681,39 +693,31 @@ class ServerAPI:
 
             endpoint = "/web/events/screenshot"
             uploaded_success = None
-            for attempt in range(1, MAX_RETRIES + 1):
-                try:
-                    logging.info(f"attempt => {attempt}")
-                    response = self._post(endpoint, payload, {"Authorization": token})
+   
+            response = self._post(endpoint, payload, {"Authorization": token})
 
-                    if LOGGING_VERBOSE == 1:
-                        logger.info(f"response => {response}")            
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"response => {response}")            
 
-                    json_data = response.json()
+            json_data = response.json()
 
-                    if LOGGING_VERBOSE == 1:
-                        logger.info(f"json_data => {json_data}")            
-                    
-                    if json_data.get('code') == "RCI0000":
-                        record.sync_status = 1
-                        record.save()
-                        uploaded_success = json_data.get('code')                   
-                    else:
-                        uploaded_success = json_data.get('code')
-                        record.object_key = object_key
-                        record.save()
-                    break
-                except Exception as e:
-                    logging.error("[ERROR]: %s", e)
-                    if attempt == MAX_RETRIES:
-                        logging.info("Failed after retries.")
-                    else:
-                        time.sleep(DELAY_SECONDS)
-            return uploaded_success          
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"json_data => {json_data}")            
+            
+            if json_data.get('code') == "RCI0000":
+                record.sync_status = 1
+                record.save()
+                uploaded_success = json_data.get('code')                   
+            else:
+                uploaded_success = json_data.get('code')
+                record.object_key = object_key
+                record.save()           
+
+            return uploaded_success      
             
         except Exception as e:            
             logger.error(f"Error during sync screenshot to ralvie: {e}")
-            return {"status": "error_occurred", "message": str(e)}                    
+            return uploaded_success                    
 
     def get_user_credentials(self, userId, token):
         """
@@ -1548,31 +1552,29 @@ class ScreenShotQueue(threading.Thread):
         userId = cached_credentials.get('userId')
         companyId = cached_credentials.get('companyId')
         headers={'X-SUNDIAL-UUID': get_uuid_address()}
-        for attempt in range(1, MAX_RETRIES + 1):
-            try:
-                url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=REMOTE_HOST, user_id=userId, company_id=companyId )
 
-                if LOGGING_VERBOSE == 1:
-                    logger.info(f"url => {url}")
+        try:
+            url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=REMOTE_HOST, user_id=userId, company_id=companyId )
 
-                res = requests.get(url, headers=headers)
-                data = res.json()      
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"url => {url}")
 
-                if LOGGING_VERBOSE == 1:
-                    logger.info(f"result get_pre_signed_url => {data}")
+            res = requests.get(url, headers=headers, timeout=30)
+            data = res.json()      
 
-                if data.get('code') == REJECTED_SYNC_STATUS:
-                    result = None, None, REJECTED_SYNC_STATUS
-                else:
-                    result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey"), data.get('code')
-                break
-            except Exception as e:
-                logging.error("[ERROR]: %s", e)
-                if attempt == MAX_RETRIES:
-                    logging.info("Failed after retries.")
-                else:
-                    time.sleep(DELAY_SECONDS)
-        return result 
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"result get_pre_signed_url => {data}")
+
+            if data.get('code') == REJECTED_SYNC_STATUS:
+                result = None, None, REJECTED_SYNC_STATUS
+            else:
+                result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey"), data.get('code')
+            logger.info(f"get_pre_signed_url result => {result}")
+            return result      
+
+        except Exception as e:
+            logging.error("[ERROR]: %s", e)
+            return result        
        
     def upload_screenshot(self, file_path, presigned_url):
 
@@ -1583,7 +1585,7 @@ class ScreenShotQueue(threading.Thread):
             # Open the file in binary mode
             with open(file_path, 'rb') as file_obj:
                 # Perform HTTP PUT request to upload file
-                response = requests.put(presigned_url, data=file_obj)    
+                response = requests.put(presigned_url, data=file_obj, timeout=30)    
             # Check response code (200 or 204 usually means success for S3)
             if response.status_code in [200, 204]:
                 return {
@@ -1595,7 +1597,8 @@ class ScreenShotQueue(threading.Thread):
                 return {
                     "status": "ERROR",
                     "message": f"Upload failed with status code: {response.status_code}"
-                }    
+                }       
+        
         except Exception as e:
             logging.info(f"Exception during upload: {str(e)}")
             return {
@@ -1617,7 +1620,6 @@ class ScreenShotQueue(threading.Thread):
                     self._try_connect()
 
                 if self.connected:
-                    response_code = None
                     try:
                         for record in self.server.db.get_screenshot_record():
 
@@ -1653,8 +1655,7 @@ class ScreenShotQueue(threading.Thread):
                                 except FileNotFoundError as e:
                                     logger.info(f"Error: File not found at {e}")
                                 except Exception as e:
-                                    logger.info(f"Error: {e}")
-                            
+                                    logger.info(f"Error: {e}")                            
                             
                             if not record.ocr_text:
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
@@ -1673,28 +1674,62 @@ class ScreenShotQueue(threading.Thread):
                                 # logger.info(f'result => {ocr_result}')
                                 # logger.info(f'result type=> {type(ocr_result)}')
                                 # self.server.db.update_ocr_text(record.id, ocr_result)
-                                time.sleep(OCR_SLEEP_TIME)
+                                # time.sleep(OCR_SLEEP_TIME)
 
-                                screenshot = self.server.db.get_screenshot_by_id(record.id)
+                                # screenshot = self.server.db.get_screenshot_by_id(record.id)
 
-                                if LOGGING_VERBOSE == 1:                                    
-                                    logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text => {screenshot.ocr_text}")
+                                # if LOGGING_VERBOSE == 1:                                    
+                                #     logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text => {screenshot.ocr_text}")
 
-                                logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text length => {len(screenshot.ocr_text)}")
+                                # logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text length => {len(screenshot.ocr_text)}")
 
-                                if screenshot.ocr_text is None:
-                                    break
+                                # if screenshot.ocr_text is None:
+                                #     break
 
-                                record = screenshot
+                                # record = screenshot
+
+                                break
 
                             if LOGGING_VERBOSE == 1:
                                 logger.info(f"record.ocr_text => {record.ocr_text}")
 
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
+
+                            if pre_signed_url_response_code is None:
+                                break
                  
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
-                                response_code = REJECTED_SYNC_STATUS
-                                break                       
+
+                                if DEVELOPMENT_MODE != 0:                                    
+                                    threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
+                                    threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
+                                    threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
+                                    
+                                logger.info("Events were rejected by the server. It looks like a session conflict caused by a concurrent login on a different machine.")
+
+                                for record in self.server.db.get_screenshot_record():
+                                    tmp_file_path, ext = os.path.splitext(record.file_path)
+                                    screenshot_file = f"{tmp_file_path}.png"
+                                    screenshot_file_ocr = f"{tmp_file_path}_ocr.png"
+                                    if os.path.exists(screenshot_file):
+                                        logger.info(f"delete screenshot file {screenshot_file}")
+                                        os.remove(screenshot_file)
+                                        os.remove(screenshot_file_ocr)
+                                    if os.path.exists(record.file_path):
+                                        logger.info(f"delete record.file_path {record.file_path}")
+                                        os.remove(record.file_path)
+                                    record.delete_instance()
+                                
+                                data = self.server.get_non_sync_events()
+                                if data.get("status") != "NoEvents":
+                                    events = data.get("events", [])
+                                    if events:                                        
+                                        event_ids = [obj['event_id'] for obj in events]
+                                        self.server.db.update_server_sync_status(list_of_ids=list(event_ids), new_status=2)
+
+                                logger.info("To logout automatically from syncing screenshot.")
+                                send_to_gui("fail")
+
                             res = self.upload_screenshot(record.file_path, pre_signed_url)
                             if res.get('status') == "SUCCESS":
                                 sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)
@@ -1711,39 +1746,7 @@ class ScreenShotQueue(threading.Thread):
                                         screenshot_file_ocr = f"{tmp_file_path}_ocr.png"
                                         os.remove(screenshot_file)
                                         os.remove(screenshot_file_ocr)
-                                        record.delete_instance()                            
-
-                        if response_code == REJECTED_SYNC_STATUS:
-
-                            if DEVELOPMENT_MODE != 0:                                    
-                                threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
-                                threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
-                                threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
-                                
-                            logger.info("Events were rejected by the server. It looks like a session conflict caused by a concurrent login on a different machine.")
-
-                            for record in self.server.db.get_screenshot_record():
-                                tmp_file_path, ext = os.path.splitext(record.file_path)
-                                screenshot_file = f"{tmp_file_path}.png"
-                                screenshot_file_ocr = f"{tmp_file_path}_ocr.png"
-                                if os.path.exists(screenshot_file):
-                                    logger.info(f"delete screenshot file {screenshot_file}")
-                                    os.remove(screenshot_file)
-                                    os.remove(screenshot_file_ocr)
-                                if os.path.exists(record.file_path):
-                                    logger.info(f"delete record.file_path {record.file_path}")
-                                    os.remove(record.file_path)
-                                record.delete_instance()
-                            
-                            data = self.server.get_non_sync_events()
-                            if data.get("status") != "NoEvents":
-                                events = data.get("events", [])
-                                if events:                                        
-                                    event_ids = [obj['event_id'] for obj in events]
-                                    self.server.db.update_server_sync_status(list_of_ids=list(event_ids), new_status=2)
-
-                            logger.info("To logout automatically")
-                            send_to_gui("fail")
+                                        record.delete_instance()                                         
 
                     except Exception as e:
                         logger.error(f"Error during upload screenshot: {e}")
