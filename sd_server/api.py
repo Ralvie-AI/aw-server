@@ -33,7 +33,7 @@ from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
-from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string
+from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string, convert_to_local_datetime_string
 from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION, PUBLIC_KEY, STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME
 from sd_server.ocr_active import ActiveWindowOCRText
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
@@ -623,6 +623,11 @@ class ServerAPI:
                     ocr_data = []
             # logger.info(f"ocr_data => {ocr_data}")
 
+            # capture_time = record.local_capture_at if record.local_capture_at is not None else record.created_at
+            if record.local_capture_at is None:
+                record.local_capture_at = record.created_at
+                record.save()  
+            capture_time = record.local_capture_at
             payload = {"userId": userId, 
                         "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -635,7 +640,8 @@ class ServerAPI:
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
                         "ocrText": ocr_data,
                         "clientTimeZone": str(get_localzone()),
-                        "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        # "local_capture_at": capture_time.strftime("%Y-%m-%d %H:%M:%S") if capture_time else None,
+                        "local_capture_at": convert_to_local_datetime_string(record.local_capture_at),
                         }
         
             # logger.info(f"screenshot payload info => {payload}")
@@ -713,6 +719,11 @@ class ServerAPI:
                     logger.error(f"OCR JSON parse failed: {e}")
                     ocr_data = []
 
+            # capture_time = record.local_capture_at if record.local_capture_at is not None else record.created_at
+            if record.local_capture_at is None:
+                record.local_capture_at = record.created_at
+                record.save()  
+            capture_time = record.local_capture_at
             payload = {"userId": userId, 
                         "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -725,7 +736,8 @@ class ServerAPI:
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
                         "ocrText": ocr_data,
                         "clientTimeZone": str(get_localzone()),
-                        "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        # "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        "local_capture_at": convert_to_local_datetime_string(record.local_capture_at),
                         }
 
             logger.debug(f"screenshot payload => {payload}")
