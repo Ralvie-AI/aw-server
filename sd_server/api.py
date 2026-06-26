@@ -162,8 +162,9 @@ class ServerAPI:
             logger.error(f"Failed to initialize RalvieServerQueue: {e}")
             self.ralvie_server_queue = None
 
-        logger.info(f"REMOTE_HOST => {REMOTE_HOST}")
-        logger.info(f"PROTOCOL => {PROTOCOL}")
+        if LOGGING_VERBOSE == 1:
+            logger.info(f"REMOTE_HOST => {REMOTE_HOST}")
+            logger.info(f"PROTOCOL => {PROTOCOL}")
 
         try:
             self.screen_shot_queue = ScreenShotQueue(self)
