@@ -100,7 +100,7 @@ authorizations = {
     }
 }
 blueprint = Blueprint("api", __name__, url_prefix="/api")
-api = Api(blueprint, doc="/",
+api = Api(blueprint, doc=None,
           decorators=[host_header_check], authorizations=authorizations)
 
 # Loads event and bucket schema from JSONSchema in sd_core
@@ -1214,7 +1214,7 @@ class server_status(Resource):
     def get(self):
         return 200
 
-@api.route("/0/lottie_js")
+@api.route("/0/lottie_js", doc=False)
 class LottieJs(Resource):    
 
     def get(self):
