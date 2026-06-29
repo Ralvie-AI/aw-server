@@ -162,11 +162,11 @@ def convert_to_local_datetime_string(dt_value) -> str:
     if dt_value is None:
         return None
         
-    # If Peewee is already extracting it as a string, just extract the first 19 characters.
+    # if Peewee is already extracting it as a string, use the first 19 characters.
     if isinstance(dt_value, str):
         return dt_value[:19]
         
-    # If you want to retrieve it as a Python datetime object, use strftime as usual.
+    # if datetime object, use strftime as usual.
     return dt_value.strftime("%Y-%m-%d %H:%M:%S")
 
 def convert_datetime_string_old(dt_string: str) -> str:

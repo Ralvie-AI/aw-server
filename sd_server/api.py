@@ -25,6 +25,7 @@ from dateutil import parser
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
+from zoneinfo import ZoneInfo
 
 from sd_core.cache import (cache_user_credentials, clear_credentials, delete_password, add_password, store_credentials, get_credentials, credentials)
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected
@@ -623,11 +624,23 @@ class ServerAPI:
                     ocr_data = []
             # logger.info(f"ocr_data => {ocr_data}")
 
-            # capture_time = record.local_capture_at if record.local_capture_at is not None else record.created_at
             if record.local_capture_at is None:
-                record.local_capture_at = record.created_at
-                record.save()  
-            capture_time = record.local_capture_at
+                utc_time = record.created_at  
+                if utc_time:
+                    # check datetime object is UTC
+                    if isinstance(utc_time, str):
+                        utc_time = parser.parse(utc_time)
+                    if utc_time.tzinfo is None:
+                        utc_time = utc_time.replace(tzinfo=timezone.utc)
+                        
+                    # convert UTC to Local Time 
+                    local_zone = ZoneInfo(str(get_localzone()))
+                    local_time = utc_time.astimezone(local_zone)
+                    
+                    # save Local Time to database
+                    record.local_capture_at = local_time
+                    record.save()
+          
             payload = {"userId": userId, 
                         "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -644,7 +657,7 @@ class ServerAPI:
                         "local_capture_at": convert_to_local_datetime_string(record.local_capture_at),
                         }
         
-            # logger.info(f"screenshot payload info => {payload}")
+            logger.debug(f"screenshot payload info => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
@@ -718,12 +731,24 @@ class ServerAPI:
                 except Exception as e:
                     logger.error(f"OCR JSON parse failed: {e}")
                     ocr_data = []
-
-            # capture_time = record.local_capture_at if record.local_capture_at is not None else record.created_at
+            
             if record.local_capture_at is None:
-                record.local_capture_at = record.created_at
-                record.save()  
-            capture_time = record.local_capture_at
+                utc_time = record.created_at  
+                if utc_time:
+                    # check datetime object is UTC
+                    if isinstance(utc_time, str):
+                        utc_time = parser.parse(utc_time)
+                    if utc_time.tzinfo is None:
+                        utc_time = utc_time.replace(tzinfo=timezone.utc)
+                        
+                    # convert UTC to Local Time 
+                    local_zone = ZoneInfo(str(get_localzone()))
+                    local_time = utc_time.astimezone(local_zone)
+                    
+                    # save Local Time to database
+                    record.local_capture_at = local_time
+                    record.save()
+
             payload = {"userId": userId, 
                         "companyId": companyId,    
                         "startTime":  convert_datetime_string(record.event.timestamp),
@@ -736,11 +761,10 @@ class ServerAPI:
                         "screenshotCaptureTime": convert_datetime_string(record.created_at),
                         "ocrText": ocr_data,
                         "clientTimeZone": str(get_localzone()),
-                        # "local_capture_at": record.local_capture_at.strftime("%Y-%m-%d %H:%M:%S"),
                         "local_capture_at": convert_to_local_datetime_string(record.local_capture_at),
                         }
-
-            logger.debug(f"screenshot payload => {payload}")
+            
+            logger.debug(f"screenshot payload info => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
             for attempt in range(1, MAX_RETRIES + 1):
