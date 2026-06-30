@@ -1,6 +1,5 @@
 import logging
 import os
-import platform
 from datetime import datetime, timedelta
 from typing import Dict, List
 
@@ -28,16 +27,6 @@ app_folder = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(app_folder, "static")
 
 root = Blueprint("root", __name__, url_prefix="/")
-
-
-def is_valid_keyring_file():
-    cfg_file = os.path.join(os.getenv('LOCALAPPDATA'), "Python Keyring", "keyring_pass.cfg")
-    logger.info(f"Checking keyring file {cfg_file}")
-    if os.path.exists(cfg_file):
-        with open(cfg_file, 'rb') as f:
-            chunk = f.read(1024)
-        return b'\x00' in chunk, cfg_file
-    return False, None
 
 class AWFlask(Flask):
     def __init__(
@@ -206,12 +195,6 @@ def _start(
      @param cors_origins - List of origins to allow cross - origin requests
      @param custom_static - Dict of custom static variables to pass to
     """
-
-    if platform.system() == "Windows":
-        is_file_corrupted, file_name = is_valid_keyring_file()
-        if is_file_corrupted:
-            logger.info(f"{file_name} was invalid, so it was deleted.")
-            os.unlink(file_name)
 
     app = AWFlask(
         host,

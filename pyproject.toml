@@ -10,7 +10,7 @@ include = ["sd_server/static/*"]
 sd-server = "sd_server:main"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">=3.11,<3.15"
 aw-core = "^0.5.8"
 aw-client = "^0.5.8"
 flask = "^2.2"
@@ -25,6 +25,7 @@ tzlocal="*"
 python-dateutil = "^2.9.0.post0"
 psutil = ">=4.0"
 charset-normalizer = "3.4.7"
+requests = "2.34.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.0"

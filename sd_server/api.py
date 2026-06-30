@@ -48,7 +48,7 @@ from sd_core.const import (
     SYNC_TIME, 
     SCREEN_SHOT_SYNC_TIME,
     HOST_TO_UPLOAD_SHOT_GET, 
-    OCR_SLEEP_TIME,
+    PROFILE_FILE,
     )
 from sd_core.version import RELEASE_VERSION
 from sd_core.system_uuid import get_uuid_address
@@ -560,12 +560,11 @@ class ServerAPI:
 
                             if not response_data.get("data").get("uuid"):
 
-                                import keyring
-                                file_path = keyring.get_keyring().file_path
+                                file_path = os.path.join(get_running_path(), PROFILE_FILE)
                                 if os.path.exists(file_path):
-                                    logger.info(f"Deleted the keyring file.")
+                                    logger.info(f"Deleted the {PROFILE_FILE} file.")
                                     os.remove(file_path)
-
+                               
                             else:
                                 self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
                                 logger.info(f"Updated the events id {event_ids} of mismatched mac address to 2.")
@@ -587,10 +586,9 @@ class ServerAPI:
                         return {"status": "Server rejected these events"}
                     elif response_data.get("code") == NO_USER_FOUND:
 
-                        import keyring
-                        file_path = keyring.get_keyring().file_path
+                        file_path = os.path.join(get_running_path(), PROFILE_FILE)
                         if os.path.exists(file_path):
-                            logger.info(f"Deleted the keyring file.")
+                            logger.info(f"Deleted the {PROFILE_FILE} file.")
                             os.remove(file_path)
                         
                         logger.info(f"response_data {response_data}")
