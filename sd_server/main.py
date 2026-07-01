@@ -89,6 +89,19 @@ def main():
     logger.info("Starting up...")
 
     if DEVELOPMENT_MODE == 1:
+        from sd_core.util import check_process_running
+
+        process_running = check_process_running("sd-main.exe")
+
+        if not process_running:
+            print("=" * 100)
+            print("\n" * 5)
+            print("Caught you! Sundial App must be run first.;-)".center(100, " "))
+            print("\n" * 5)
+            print("=" * 100)
+
+            sys.exit(0)
+
         if settings.testing == True or settings.port != 7600:
             print("=" * 100)
             print("\n" * 5)
