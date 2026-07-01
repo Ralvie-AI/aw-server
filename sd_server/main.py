@@ -5,6 +5,7 @@ import sys
 import psutil
 
 from sd_core.log import setup_logging
+from sd_core.const import DEVELOPMENT_MODE
 from sd_datastore import get_storage_methods
 
 from . import __version__
@@ -86,14 +87,37 @@ def main():
         sys.exit(0)
 
     logger.info("Starting up...")
-    _start(
-        host=settings.host,
-        port=settings.port,
-        testing=settings.testing,
-        storage_method=storage_method,
-        cors_origins=settings.cors_origins,
-        custom_static=settings.custom_static,
-    )
+
+    if DEVELOPMENT_MODE == 1:
+        if settings.testing == True or settings.port != 7600:
+            print("=" * 100)
+            print("\n" * 5)
+            print("Caught you! Those parameters are reserved for testing.;-)".center(100, " "))
+            print("\n" * 5)
+            print("=" * 100)
+
+            sys.exit(0)
+        else:                
+            _start(
+                host=settings.host,
+                port=7600,
+                testing=False,
+                storage_method=storage_method,
+                cors_origins=settings.cors_origins,
+                custom_static=settings.custom_static,
+            )        
+    elif DEVELOPMENT_MODE == 0:        
+        _start(
+            host=settings.host,
+            port=settings.port,
+            testing=settings.testing,
+            storage_method=storage_method,
+            cors_origins=settings.cors_origins,
+            custom_static=settings.custom_static,
+        )
+    else:
+        print("Bye Bye")
+        sys.exit(0)
 
 
 def parse_settings():
