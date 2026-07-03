@@ -658,12 +658,13 @@ class ServerAPI:
                 afk_dict["title"] = record.event.title
 
             ocr_data = []
-            ocr_text_json = json.loads(record.ocr_text)
-            for data in ocr_text_json.get('data'):
-                if len(data.get('text')) == 1:
-                    continue 
-                ocr_data.append(data)
-
+            if record.is_ocr_text_enabled:                
+                ocr_text_json = json.loads(record.ocr_text)
+                for data in ocr_text_json.get('data'):
+                    if len(data.get('text')) == 1:
+                        continue 
+                    ocr_data.append(data)
+            
             if LOGGING_VERBOSE == 1:
                 logger.info(f"orc_data => {ocr_data}")
 
@@ -687,6 +688,7 @@ class ServerAPI:
                         "clientTimeZone": local_time_zone,
                         "local_capture_at": self.get_local_capture_at(local_time_zone, record),
                         "timeout": 40,
+                        "isOcrTextEnabled": record.is_ocr_text_enabled,
                         }
 
             if LOGGING_VERBOSE == 1:
@@ -1658,7 +1660,7 @@ class ScreenShotQueue(threading.Thread):
                                 except Exception as e:
                                     logger.info(f"Error: {e}")                            
                             
-                            if not record.ocr_text:
+                            if record.is_ocr_text_enabled and  not record.ocr_text:
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
