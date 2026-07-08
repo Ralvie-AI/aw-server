@@ -607,7 +607,8 @@ class ServerAPI:
                 afk_dict["title"] = record.event.title
 
             ocr_data = []
-            if record.ocr_text:
+            # if record.ocr_text:
+            if record.is_ocr_text_enabled:
                 try:
                     ocr_text_json = json.loads(record.ocr_text)
                     
@@ -655,6 +656,7 @@ class ServerAPI:
                         "clientTimeZone": str(get_localzone()),
                         # "local_capture_at": capture_time.strftime("%Y-%m-%d %H:%M:%S") if capture_time else None,
                         "local_capture_at": convert_to_local_datetime_string(record.local_capture_at),
+                        "isOcrTextEnabled": record.is_ocr_text_enabled,
                         }
         
             logger.debug(f"screenshot payload info => {payload}")
@@ -1910,7 +1912,8 @@ class ScreenShotQueue(threading.Thread):
                                     logger.info(f"Error: {e}")
                             
                             # logger.info(f"record.ocr_text => {record.ocr_text}")
-                            if not record.ocr_text:
+                            # if not record.ocr_text:
+                            if record.is_ocr_text_enabled and not record.ocr_text:
                                 # logger.info(f"record.file_path => {record.file_path}")
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 # use active image
