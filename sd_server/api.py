@@ -1,3 +1,5 @@
+import sys 
+import subprocess
 import os
 import functools
 import json
@@ -31,6 +33,7 @@ from sd_core.cache import (
     add_password, 
     store_credentials, 
     credentials,
+    add_db_key,
     )
 from sd_core.util import (
     encrypt_uuid, 
@@ -39,6 +42,7 @@ from sd_core.util import (
     get_running_path, 
     start_exe, 
     convert_datetime_string,
+    db_file_exists,
     )
 from sd_core.const import (
     CACHE_KEY, 
@@ -137,7 +141,44 @@ def _log_request_exception(e: req.RequestException):
     except json.JSONDecodeError:
         pass
 
+   
+def get_credentials_via_subprocess(url: str, headers: dict = None):
+    from sd_server.credentials import decrypt_to_dict
+    try:
+        headers_str = json.dumps(headers or {})        
+        executable_path = os.path.join(get_running_path(), "credentials.exe")
+        # Extra guard for Windows to ensure no window flashes
+        creation_flags = 0
+        if sys.platform == "win32":
+            creation_flags = 0x08000000  # CREATE_NO_WINDOW
 
+        # Run the compiled subprocess
+        result = subprocess.run(
+            [executable_path, url, headers_str],
+            capture_output=True,
+            text=True,
+            timeout=40,
+            check=True,
+            creationflags=creation_flags
+        )
+
+        encrypted_blob = result.stdout.strip()
+
+        if encrypted_blob.startswith("{") and "error" in encrypted_blob:
+            error_data = json.loads(encrypted_blob)
+            raise Exception(error_data["error"])
+        
+        credentials_dict = decrypt_to_dict(encrypted_blob)
+
+        return credentials_dict
+
+    except subprocess.TimeoutExpired:
+        print("Request timed out")
+        return None
+    except Exception as e:
+        print("Error fetching credentials:", e)
+        return None
+    
 class ServerAPI:
     def __init__(self, db, testing: bool) -> None:
         """
@@ -267,7 +308,6 @@ class ServerAPI:
         headers = dict()
         if params:
             headers.update(params)
-        # logger.info(f"_get => {self._build_headers(additional_headers=headers)}")
         return req.get(self._url(endpoint), headers=self._build_headers(additional_headers=headers))
         
     @always_raise_for_request_errors
@@ -716,8 +756,8 @@ class ServerAPI:
             
         except Exception as e:            
             logger.error(f"Error during sync screenshot to ralvie: {e}")
-            return uploaded_success                    
-
+            return uploaded_success           
+      
     def get_user_credentials(self, userId, token):
         """
         Get credentials for a user. This is a wrapper around the get_credentials endpoint to provide access to the user's credentials.
@@ -725,46 +765,31 @@ class ServerAPI:
         @param userId: User ID
         @param token: Authorization token
         """
+        
         endpoint = f"/web/user/{userId}/credentials"
-        user_credentials = self._get(endpoint, {"Authorization": token})
+        url = self._url(endpoint)        
+        headers={"Authorization": token}
+        data = get_credentials_via_subprocess(url, headers)
 
-        if user_credentials.status_code == 200 and json.loads(user_credentials.text)["code"] == SUCCESSFUL_SYNC_STATUS:
-            credentials_data = json.loads(user_credentials.text)["data"]["credentials"]
-            user_data = json.loads(user_credentials.text)["data"]["user"]
+        if LOGGING_VERBOSE == 1:
+            logger.info(f"data via subprocess => {data}")
 
-            # Extract and encrypt credentials
-            db_key = credentials_data["dbKey"]
-            data_encryption_key = credentials_data["dataEncryptionKey"]
-            user_key = credentials_data["userKey"]
-            email = user_data.get("email", None)
-            phone = user_data.get("phone", None)
-            companyId = user_data.get("companyId", None)
-            companyName = user_data.get("companyName", None)
-            firstName = user_data.get("firstName", None)
-            key = user_key
-            encrypted_db_key = encrypt_uuid(db_key, key)
-            encrypted_data_encryption_key = encrypt_uuid(data_encryption_key, key)
-            # encrypted_user_key = encrypt_uuid(user_key, key)
-            # Create the SD_KEYS dictionary
+        if data.get("code") == SUCCESSFUL_SYNC_STATUS:
             SD_KEYS = {
-                "user_key": user_key,
-                "encrypted_db_key": encrypted_db_key,
-                "encrypted_data_encryption_key": encrypted_data_encryption_key,
-                "email": email,
-                "phone": phone,
-                "firstname": firstName,
-                "userId": userId,
-                "token": token,
-                "companyId": companyId,
-                "companyName": companyName,
-                "Authenticated": True,
-            }
-
+                    "user_key": data.get("user_key"),
+                    "email": data.get("email"),
+                    "phone": data.get("phone"),
+                    "firstname": data.get("firstName"),
+                    "userId": data.get("userId"),
+                    "token": data.get("token"),
+                    "companyId": data.get("companyId"),
+                    "companyName": data.get("companyName"),
+                    "Authenticated": True,
+                    }
+            encrypted_db_key = encrypt_uuid(data.get("dbKey"), data.get("user_key"))
             add_password(CACHE_KEY, SD_KEYS)
-
+            add_db_key(encrypted_db_key)
             self.last_event = {}
-
-        return user_credentials
 
     def get_user_by_id(self, token):
         """
@@ -1453,7 +1478,7 @@ class RalvieServerQueue(threading.Thread):
         try:
             cached_credentials = credentials()
             if cached_credentials:
-                db_key = cached_credentials.get("encrypted_db_key")
+                db_key = db_file_exists()
                 user_key = cached_credentials.get("user_key")
                 userId = cached_credentials.get("userId")
 
@@ -1517,7 +1542,7 @@ class ScreenShotQueue(threading.Thread):
         try:
             cached_credentials = credentials()
             if cached_credentials:
-                db_key = cached_credentials.get("encrypted_db_key")
+                db_key = db_file_exists()
                 user_key = cached_credentials.get("user_key")
                 userId = cached_credentials.get("userId")
 
