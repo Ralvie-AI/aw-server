@@ -170,7 +170,7 @@ def _config_cors(cors_origins: List[str], testing: bool):
 
     # TODO: This could probably be more specific
     #       See https://github.com/ActivityWatch/sd-server/pull/43#issuecomment-386888769
-    cors_origins.append("moz-extension://*")
+    # cors_origins.append("moz-extension://*")
 
     # See: https://flask-cors.readthedocs.org/en/latest/
     CORS(current_app, resources={r"/api/*": {"origins": cors_origins}})
