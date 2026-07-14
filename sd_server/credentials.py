@@ -187,4 +187,4 @@ if __name__ == "__main__":
     fetch_and_print_keys(url, headers)
 
 
-    # pyinstaller --onefile --noconsole fetch_credentials.py
+    # pyinstaller --onefile --noconsole credentials.py

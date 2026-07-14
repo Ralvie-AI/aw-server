@@ -14,3 +14,7 @@ venv
 htmlcov
 coverage.xml
 coverage_html
+version.py
+sd_server/__about__.py
+*.pyd
+*.c

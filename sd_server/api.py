@@ -1304,7 +1304,7 @@ class ServerAPI:
         self,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-    ) -> List[Event]:
+    ):
         events = self.db.get_dashboard_events(starttime=start,endtime=end)
         # groupedEvents = group_events_by_application(events)   
 
@@ -1329,7 +1329,7 @@ class ServerAPI:
     def get_lastest_event(self):
         return self.db.get_lastest_event()        
 
-    def get_non_sync_events(self) -> List[Event]:
+    def get_non_sync_events(self):
         events = self.db.get_non_sync_events()
         if not events:
             logger.info("No unsynced events found.")

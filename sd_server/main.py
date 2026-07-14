@@ -5,7 +5,7 @@ import sys
 import psutil
 
 from sd_core.log import setup_logging
-from sd_core.const import DEVELOPMENT_MODE
+from sd_core.const import DEVELOPMENT_MODE, LOGGING_VERBOSE
 from sd_datastore import get_storage_methods
 
 from . import __version__
@@ -60,7 +60,8 @@ def main():
         log_file=True,
     )
 
-    logger.info(f"Using storage method: {settings.storage}")
+    if LOGGING_VERBOSE == 1:
+        logger.info(f"Using storage method: {settings.storage}")
 
     # If testing is enabled in testing mode
     if settings.testing:
@@ -112,7 +113,7 @@ def main():
             sys.exit(0)
         else:                
             _start(
-                host=settings.host,
+                host=str(settings.host),
                 port=7600,
                 testing=False,
                 storage_method=storage_method,
