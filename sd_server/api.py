@@ -146,7 +146,7 @@ def get_credentials_via_subprocess(url: str, headers: dict = None):
     from sd_server.credentials import decrypt_to_dict
     try:
         headers_str = json.dumps(headers or {})        
-        executable_path = os.path.join(get_running_path(), "credentials.exe")
+        executable_path = os.path.join(get_running_path(), "credential.exe")
         # Extra guard for Windows to ensure no window flashes
         creation_flags = 0
         if sys.platform == "win32":

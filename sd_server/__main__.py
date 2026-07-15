@@ -1,3 +1,3 @@
-import sd_server
+from sd_server.main import main
 
-sd_server.main()
+main()
