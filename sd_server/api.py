@@ -5,6 +5,7 @@ import logging
 import time
 import threading
 import uuid
+import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from socket import gethostname
@@ -575,9 +576,13 @@ class ServerAPI:
             else:
                 logger.info("No events to sync.")
                 return {"status": "no_events"}
-        except Exception as e:
-            logger.error(f"Error during sync_events_to_ralvie: {e}")
-            return {"status": "error_occurred", "message": str(e)}
+        # except Exception as e:
+        #     logger.error(f"Error during sync_events_to_ralvie: {e}")
+        #     return {"status": "error_occurred", "message": str(e)}
+        except Exception:
+            logger.exception("Error during sync_events_to_ralvie")
+            return {"status": "error_occurred", "message": "error_occurred"}
+            
         
     def sync_screenshot_to_ralvie(self, object_key, record):
         try:
@@ -1867,9 +1872,8 @@ class ScreenShotQueue(threading.Thread):
                     if self._try_connect():
                         last_tick = time.time()   # reset inactivity
                         logger.info("Reconnected successfully, resetting inactivity timer")
-
+                logger.debug(f"Current screenshot queue connection status: {self.connected}")
                 print("self.connected ", self.connected)
-
 
                 if self.connected:
                     # logger.info("Connected to internet. Attempting to sync screenshot.")
@@ -1935,7 +1939,8 @@ class ScreenShotQueue(threading.Thread):
                                     ocr_result = json.dumps(ocr_result)
 
                                 self.server.db.update_ocr_text(record.id, ocr_result)
-                                break
+                                record.ocr_text = ocr_result
+                                # break
 
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
