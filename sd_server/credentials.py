@@ -174,7 +174,7 @@ def fetch_and_print_keys(url: str, headers: dict):
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
 
-if __name__ == "__main__":
+def main():
     # Expect URL and headers from command line or stdin
     if len(sys.argv) < 2:
         print(json.dumps({"error": "URL required"}))
@@ -185,6 +185,10 @@ if __name__ == "__main__":
     headers = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
 
     fetch_and_print_keys(url, headers)
+
+
+if __name__ == "__main__":
+    main()    
 
 
     # pyinstaller --onefile --noconsole credentials.py
