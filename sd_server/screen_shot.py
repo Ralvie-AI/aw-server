@@ -65,11 +65,15 @@ def screenshot():
         abort(403, description="Forbidden: Request must originate from sd-pixel-engine.exe")
 
     json_data = request.get_json()  # Expects Content-Type: application/json
+    logger.info(f"json_data => {json_data}")
+    logger.info(f"json_data => {type(json_data)}")
     if not json_data:
         return jsonify({'error': 'No JSON payload provided'}), 400
     
     event_id = json_data.get('event_id') 
     latest_event = current_app.api.db.get_event_by_id(event_id)   
+    is_ocr_text_enabled = json_data.get('is_ocr_text_enabled')
+    logger.info(f"is_ocr_text_enabled => {is_ocr_text_enabled} => {type(is_ocr_text_enabled)}")
     event_data = model_to_dict(latest_event)
 
     get_afk_data = json.loads(event_data.get('datastr'))
@@ -119,7 +123,8 @@ def screenshot():
         data = {
                 "event_id": event_id,
                 "file_path": json_file,
-                'created_at': datetime.fromisoformat(created_at)
+                'created_at': datetime.fromisoformat(created_at),
+                'is_ocr_text_enabled': is_ocr_text_enabled,
                 }
         
         current_app.api.db.save_screenshot(data)     
@@ -135,7 +140,8 @@ def screenshot():
         data = {
                 "event_id": event_id,
                 "file_path": file_location,
-                'created_at': datetime.fromisoformat(created_at)
+                'created_at': datetime.fromisoformat(created_at),
+                'is_ocr_text_enabled': is_ocr_text_enabled,
                 }
         
         current_app.api.db.save_screenshot(data)     

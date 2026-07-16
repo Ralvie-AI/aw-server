@@ -16,5 +16,6 @@ coverage.xml
 coverage_html
 version.py
 sd_server/__about__.py
+sd_server/version.py
 *.pyd
 *.c
