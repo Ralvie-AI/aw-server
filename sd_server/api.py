@@ -1857,20 +1857,26 @@ class ScreenShotQueue(threading.Thread):
             now = time.time()
             gap = now - last_tick
 
-            if gap > 60 * 10:  # 10 minutes
-                logger.info(
-                    f"Long inactivity detected (gap={int(gap)}s), forcing reconnect"
-                )
+            # [CASE 1] ดักจับกรณีเครื่องเพิ่งตื่นจาก Sleep Mode (เวลากระโดดข้ามไปไกลมาก เช่น > 20 นาที)
+            if gap > 60 * 20: 
+                logger.warning(f"Extreme time gap detected ({int(gap)}s). System probably woke up from sleep. Re-aligning...")
+                last_tick = now
                 self.connected = False
+                self.wait(5) 
+                continue      
 
-            last_tick = now
+            # [CASE 2] กรณีแอปทำงานต่อเนื่องปกติ แต่ขาดการติดต่อกับ Server นานเกิน 10 นาที (เน็ตหลุดปกติ)
+            if gap > 60 * 10:
+                logger.info(f"Long inactivity detected (gap={int(gap)}s), forcing reconnect")
+                self.connected = False
+                last_tick = now 
+
             # Check internet connection and attempt to sync
             # print("is_internet_connected()", is_internet_connected())
             if is_internet_connected():
                 if not self.connected:
                     logger.info("Attempting to reconnect...")
                     if self._try_connect():
-                        last_tick = time.time()   # reset inactivity
                         logger.info("Reconnected successfully, resetting inactivity timer")
                 logger.debug(f"Current screenshot queue connection status: {self.connected}")
                 print("self.connected ", self.connected)
@@ -2027,6 +2033,8 @@ class ScreenShotQueue(threading.Thread):
                     logger.warning("Not connected. Retrying in a few seconds.")
             else:
                 logger.warning("No internet connection. Waiting to retry...")
+            
+            last_tick = time.time()
 
             # Wait for the defined interval before trying again, respecting stop events.
             self.wait(SCREEN_SHOT_TIME)
