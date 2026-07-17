@@ -1846,8 +1846,191 @@ class ScreenShotQueue(threading.Thread):
                 "status": "ERROR",
                 "message": str(e)
             }
-
+    
     def run(self) -> None:
+        # Attempt to establish a connection on start
+        if not self._try_connect():
+            logger.info("Initial connection attempt failed. Will retry.")
+
+        last_tick = time.time()
+        while not self.should_stop():
+            now = time.time()
+            gap = now - last_tick
+
+            # ชะลอเวลาตอนตื่นนอนให้ OS พร้อมก่อนรันต่อ
+            if gap > 60 * 20: 
+                logger.warning(f"Extreme time gap detected ({int(gap)}s). System probably woke up from sleep. Re-aligning...")
+                last_tick = now
+                self.connected = False
+                self.wait(10)  # เพิ่มเวลาเป็น 10 วินาทีเพื่อให้เน็ตเวิร์กการ์ดฝั่ง macOS พร้อมทำงานจริงๆ
+                continue      
+
+            # [CASE 2] กรณีแอปทำงานต่อเนื่องปกติ แต่ขาดการติดต่อกับ Server นานเกิน 10 นาที (เน็ตหลุดปกติ)
+            if gap > 60 * 10:
+                logger.info(f"Long inactivity detected (gap={int(gap)}s), forcing reconnect")
+                self.connected = False
+                last_tick = now 
+
+            # Check internet connection and attempt to sync
+            if is_internet_connected():
+                if not self.connected:
+                    logger.info("Attempting to reconnect...")
+                    if self._try_connect():
+                        logger.info("Reconnected successfully, resetting inactivity timer")
+                logger.debug(f"Current screenshot queue connection status: {self.connected}")
+                print("self.connected ", self.connected)
+
+                if self.connected:
+                    response_code = None
+                    
+                    try:
+                        records = list(self.server.db.get_screenshot_record())
+                    except Exception as e:
+                        logger.error(f"Failed to fetch records from local DB: {e}")
+                        records = []
+
+                    for record in records:
+                        try:
+                            tmp_file, ext = os.path.splitext(record.file_path)
+                            if ext != ".json":
+                                creds = credentials()
+                                image_format = "png"
+                                user_id = creds.get('userId')
+                                company_id  = creds.get('companyId')
+                                UUID = get_uuid_address()
+
+                                associated_data = f"image_format={image_format},user_id={user_id},company_id={company_id},UUID={UUID}".encode('utf-8')
+                                public_key_file = PUBLIC_KEY.format(email=creds.get('email'), company_id=company_id)
+
+                                if not os.path.exists(public_key_file):
+                                    logger.info(f"record.file_path => {record.file_path}")
+                                    logger.info(f"No public key found {public_key_file}")
+                                    continue # ใช้ continue แทน break เพื่อให้ข้ามไปทำแถวถัดไปแทนที่จะหยุดคิวทั้งหมด
+
+                                encrypted_data_json = encrypt_image_to_json_gcm(record.file_path, associated_data, public_key_path=public_key_file)
+                                file_path_without_ext, ext = os.path.splitext(record.file_path)
+                                json_file = f"{file_path_without_ext}.json"    
+
+                                try:
+                                    with open(json_file, 'w') as f:
+                                        f.write(encrypted_data_json)
+
+                                    record.file_path = json_file 
+                                    record.save()                        
+                                except FileNotFoundError as e:
+                                    logger.info(f"Error: File not found at {e}")
+                                    continue # ข้ามไฟล์ที่มีปัญหานี้ไปก่อน
+                                except Exception as e:
+                                    logger.info(f"Error: {e}")
+                                    continue
+                            
+                            if record.is_ocr_text_enabled and not record.ocr_text:
+                                tmp_file_path, ext = os.path.splitext(record.file_path)
+                                active_file = f"{tmp_file_path}_active.png"
+
+                                if not os.path.exists(active_file):
+                                    logger.warning(f"Screenshot file missing: {active_file}")
+                                    record.delete_instance()
+                                    continue 
+
+                                ocr_result = self.ocr.run_ocr(img_path=active_file)
+                                logger.debug(f'ocr result => {ocr_result}')
+
+                                if not isinstance(ocr_result, str):
+                                    ocr_result = json.dumps(ocr_result)
+
+                                self.server.db.update_ocr_text(record.id, ocr_result)
+                                record.ocr_text = ocr_result
+
+                            pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
+                            if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
+                                response_code = REJECTED_SYNC_STATUS
+                                break # หากโดนปฏิเสธจากเซสชันซ้ำ ให้หยุดลูปอัปโหลดทันที เพื่อเข้าสู่การเคลียร์และ logout ด้านล่าง
+
+                            res = self.upload_screenshot(record.file_path, pre_signed_url)
+                            if res.get('status') == "SUCCESS":
+                                sync_result = self.server.sync_screenshot_to_ralvie(object_key, record)
+                                logger.info(f"screenshot sync result => {sync_result}")
+                                if sync_result == "RCI0000":
+                                    if record.sync_status == 1:
+                                        img_file_path = record.file_path
+                                        os.remove(img_file_path)
+
+                                        tmp_file_path, ext = os.path.splitext(img_file_path)
+                                        full_file = f"{tmp_file_path}.png"
+                                        active_file = f"{tmp_file_path}_active.png"
+
+                                        if os.path.exists(full_file):
+                                            os.remove(full_file)
+
+                                        if os.path.exists(active_file):
+                                            os.remove(active_file)
+                                    
+                                        record.delete_instance()
+                            else:
+                                if record.object_key:
+                                    sync_result = self.server.retry_sync_screenshot_to_ralvie(record.object_key, record)
+                                    logger.info(f"result url => {sync_result}")
+                                    if sync_result == "RCI0000":
+                                        logger.info(f"screenshot sync result => {sync_result}")
+                                        if record.sync_status == 1:
+                                            img_file_path = record.file_path
+                                            logger.debug(f"img_file_path => {img_file_path}")
+                                            os.remove(img_file_path)
+                                            tmp_file_path, ext = os.path.splitext(img_file_path)
+                                            screenshot_file = f"{tmp_file_path}.png"
+                                            os.remove(screenshot_file)
+                                            record.delete_instance()     
+
+                        except Exception as record_error:
+                            # หากไฟล์ไหนมีปัญหาตอนทำงาน มันจะเด้งมาที่นี่ บันทึกข้อผิดพลาด 
+                            # แล้วข้ามไปรันไฟล์แถวถัดไปทันที (ป้องกันคิวหยุดชะงัก)
+                            logger.error(f"Error during processing record {record.id}: {record_error}")
+                    try:
+                        if response_code == REJECTED_SYNC_STATUS:
+                            macos_pid = get_running_process_id("sd-watcher-window-macos")
+                            afk_pid = get_running_process_id("sd-watcher-afk")
+                            screenshot_pid = get_running_process_id("sd-pixel-engine")
+                    
+                            threading.Thread(target=stop_process, args=(macos_pid,)).start()
+                            threading.Thread(target=stop_process, args=(afk_pid,)).start()
+                            threading.Thread(target=stop_process, args=(screenshot_pid,)).start()
+                            logger.info("Events were rejected by the server. It looks like a session conflict caused by a concurrent login on a different machine.")
+
+                            for record in self.server.db.get_screenshot_record():
+                                tmp_file_path, ext = os.path.splitext(record.file_path)
+                                screenshot_file = f"{tmp_file_path}.png"
+                                if os.path.exists(screenshot_file):
+                                    logger.info(f"delete screenshot file {screenshot_file}")
+                                    os.remove(screenshot_file)
+                                if os.path.exists(record.file_path):
+                                    logger.info(f"delete record.file_path {record.file_path}")
+                                    os.remove(record.file_path)
+                                record.delete_instance()
+                            
+                            data = self.server.get_non_sync_events()
+                            if data.get("status") != "NoEvents":
+                                events = data.get("events", [])
+                                if events:                                        
+                                    event_ids = [obj['event_id'] for obj in events]
+                                    self.server.db.update_server_sync_status(list_of_ids=list(event_ids), new_status=2)
+
+                            server_pid = get_running_process_id("sd-server")       
+                            threading.Thread(target=server_pid, args=("sd-server",)).start()
+                            logger.info("To logout automatically")
+                            send_to_gui("fail")                                                
+                    except Exception as logout_err:
+                        logger.error(f"Error during handling logout logic: {logout_err}")
+
+            else:
+                logger.warning("No internet connection. Waiting to retry...")
+            
+            last_tick = time.time()
+
+            # Wait for the defined interval before trying again, respecting stop events.
+            self.wait(SCREEN_SHOT_TIME)
+
+    def run_old(self) -> None:
         # Attempt to establish a connection on start
         if not self._try_connect():
             logger.info("Initial connection attempt failed. Will retry.")
