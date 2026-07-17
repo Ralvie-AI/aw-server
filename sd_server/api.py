@@ -1572,7 +1572,10 @@ class ScreenShotQueue(threading.Thread):
                 result = None, None, REJECTED_SYNC_STATUS
             else:
                 result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey"), data.get('code')
-            logger.info(f"get_pre_signed_url result => {result}")
+
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"get_pre_signed_url result => {result}")
+                
             return result      
 
         except Exception as e:
