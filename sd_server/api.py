@@ -1877,7 +1877,7 @@ class ScreenShotQueue(threading.Thread):
                     logger.info("Attempting to reconnect...")
                     if self._try_connect():
                         logger.info("Reconnected successfully, resetting inactivity timer")
-                logger.debug(f"Current screenshot queue connection status: {self.connected}")
+                # logger.debug(f"Current screenshot queue connection status: {self.connected}")
                 print("self.connected ", self.connected)
 
                 if self.connected:
