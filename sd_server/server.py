@@ -2,6 +2,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 from typing import Dict, List
+from pathlib import Path
 
 import flask.json.provider
 from flask_cors import CORS
@@ -196,6 +197,11 @@ def _start(
      @param custom_static - Dict of custom static variables to pass to
     """
 
+    tls_dir = Path(os.getenv("LOCALAPPDATA")) / "Sundial" / "Sundial" / "tls"
+
+    cert = tls_dir / "localhost.crt"
+    key = tls_dir / "localhost.key"
+
     app = AWFlask(
         host,
         testing=testing,
@@ -212,6 +218,7 @@ def _start(
             request_handler=FlaskLogHandler,
             use_reloader=False,
             threaded=True,
+            ssl_context=(str(cert), str(key)),
         )
     except OSError as e:
         logger.exception(e)

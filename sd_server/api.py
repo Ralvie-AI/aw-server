@@ -788,7 +788,9 @@ class ServerAPI:
                     "companyName": data.get("companyName"),
                     "Authenticated": True,
                     }
-            encrypted_db_key = encrypt_uuid(data.get("dbKey"), data.get("user_key"))
+            encrypted_db_key = encrypt_uuid(data.get("db_key"), data.get("user_key"))
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"encrypted_db_key => {encrypted_db_key}")
             add_password(CACHE_KEY, SD_KEYS)
             add_db_key(encrypted_db_key)
             self.last_event = {}
@@ -1686,7 +1688,7 @@ class ScreenShotQueue(threading.Thread):
                             if record.is_ocr_text_enabled and  not record.ocr_text:
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
-                                server_url = "http://localhost:7600/screenshot/update_ocr_text"
+                                server_url = "https://localhost:7600/screenshot/update_ocr_text"
                                 file_location = get_running_path()
                                 sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity.exe")   
                                 command_list = [             

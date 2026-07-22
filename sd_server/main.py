@@ -1,11 +1,14 @@
 import os 
 import logging
 import sys
+import subprocess
+from pathlib import Path 
 
 import psutil
 
 from sd_core.log import setup_logging
 from sd_core.const import DEVELOPMENT_MODE, LOGGING_VERBOSE
+from sd_core.util import  get_running_path
 from sd_datastore import get_storage_methods
 
 from . import __version__
@@ -43,6 +46,18 @@ def main():
      Entry point for sd - server. This is the main function called by the executable and __main__. py
     """
     """Called from the executable and __main__.py"""
+
+    tls_dir = Path(os.getenv("LOCALAPPDATA")) / "Sundial" / "Sundial" / "tls"
+
+    cert = tls_dir / "localhost.crt"
+    key = tls_dir / "localhost.key"
+
+    if not os.path.exists(tls_dir) or os.path.exists(cert) or os.path.exists(key):
+        tls_exe = os.path.join(get_running_path(), "tls-generator.exe")
+        try:
+            subprocess.run([tls_exe], timeout=30)  # Waits at most 30 seconds
+        except subprocess.TimeoutExpired:
+            logger.exception("The program took too long and was interrupted.")
 
     settings, storage_method = parse_settings()
 
