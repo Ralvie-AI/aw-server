@@ -28,7 +28,7 @@ from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
 from zoneinfo import ZoneInfo
 
-from sd_core.cache import (cache_user_credentials, clear_credentials, delete_password, add_password, store_credentials, get_credentials, credentials)
+from sd_core.cache import (cache_user_credentials, clear_credentials, delete_password, add_password, store_credentials, get_credentials, credentials, keychain_item_exists)
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
