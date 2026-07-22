@@ -878,11 +878,3 @@ class RalvieTokenRefreshResource(Resource):
 class server_status(Resource):
     def get(self):
         return 200
-
-@api.route("/0/lottie_js", doc=False)
-class LottieJs(Resource):    
-
-    def get(self):
-        if LOGGING_VERBOSE == 1:
-            logger.info(f"api.blueprint_setup.app.static_folder: {api.blueprint_setup.app.static_folder}")
-        return send_from_directory(api.blueprint_setup.app.static_folder, "js/lottie.min.js")
