@@ -1,6 +1,5 @@
 import getpass
 import json
-import traceback
 from functools import wraps
 from threading import Lock
 from typing import Dict
@@ -19,18 +18,19 @@ from flask import (
     request,
     send_from_directory,
 )
+from flask_jwt_extended import  create_access_token, jwt_required
+from flask_jwt_extended.exceptions import NoAuthorizationError
 
-
-from sd_core.util import (authenticate, 
-                          is_internet_connected, 
-                          reset_user)
-from sd_core.const import (SETTINGS_CACHE_KEY, 
-                           LOGGING_VERBOSE, 
-                           APPLICATION_CACHE_KEY)
+from sd_core.util import (
+    is_internet_connected, 
+    reset_user)
+from sd_core.const import (
+    SETTINGS_CACHE_KEY, 
+    LOGGING_VERBOSE, 
+    APPLICATION_CACHE_KEY)
 from sd_core import schema, db_cache
 from sd_core.models import Event
 from sd_core.cache import credentials
-from sd_query.exceptions import QueryException
 from sd_core.os_util import is_windows
 from . import logger
 from .api import ServerAPI
@@ -99,14 +99,28 @@ authorizations = {
         'name': 'Authorization',
     }
 }
+
+
 blueprint = Blueprint("api", __name__, url_prefix="/api")
-api = Api(blueprint, doc=None,
-          decorators=[host_header_check], authorizations=authorizations)
+api = Api(blueprint, doc="/",
+          decorators=[host_header_check], 
+          authorizations=authorizations,
+          )
+
+@api.errorhandler(NoAuthorizationError)
+def handle_no_auth(error):
+    return {
+        "message": "Authorization token required to execute this endpoint.",
+        "error": "unauthorized"
+    }, 401
+
 
 # Loads event and bucket schema from JSONSchema in sd_core
 event = api.schema_model("Event", schema.get_json_schema("event"))
 bucket = api.schema_model("Bucket", schema.get_json_schema("bucket"))
 buckets_export = api.schema_model("Export", schema.get_json_schema("export"))
+user = api.schema_model("User", schema.get_json_schema("user"))
+
 
 # TODO: Construct all the models from JSONSchema?
 #       A downside to contructing from JSONSchema: flask-restplus does not have marshalling support
@@ -179,13 +193,30 @@ def copy_doc(api_method):
     return decorator
 
 
-# SERVER INFO
-
 # Users
+@api.route('/0/login')
+class Login(Resource):
+    @api.expect(user, validate=True)
+    def post(self):
+        """Authenticate a user and return a JWT access token."""
 
+        data = request.get_json()
+
+        # 1. Fetch the user by email from the Peewee database
+        if not current_app.api.check_email(data['email']):
+            return {"message": "Invalid email or password"}, 401
+        
+        # 2. Compare the plain text password with the stored hash
+        is_password, user_id = current_app.api.check_password(data['email'], data['password'])
+        if is_password:
+            # 3. If correct, generate the JWT access token
+            access_token = create_access_token(identity=str(user_id))
+            return {"token": access_token}, 200
+        
+        return {"message": "Invalid email or password"}, 401
 
 # Login by ralvie cloud
-@api.route("/0/ralvie/login")
+@api.route("/0/ralvie/login",  doc=False)
 class RalvieLoginResource(Resource):
     def post(self):
         """
@@ -205,7 +236,6 @@ class RalvieLoginResource(Resource):
         user_name = data.get('userName')
         password = data.get('password')
         companyId = data.get('companyId', None)
-        print(user_name, password, companyId)
         user_id = None
 
         # JSON response with user_name password user_name user_name password
@@ -241,6 +271,7 @@ class RalvieLoginResource(Resource):
                 reset_user()
                 return {"message": "Can not create the database."}, 500
 
+            current_app.api.create_user(user_name, password)
             # Generate JWT
             user_credentials = credentials()
             payload = {
@@ -260,7 +291,7 @@ class RalvieLoginResource(Resource):
 
 # BUCKETS
 
-@api.route("/0/buckets/<string:bucket_id>/formated_events")
+@api.route("/0/buckets/<string:bucket_id>/formated_events",  doc=False)
 class EventsResource(Resource):
     # For some reason this doesn't work with the JSONSchema variant
     # Marshalling doesn't work with JSONSchema events
@@ -320,6 +351,9 @@ class EventsResource(Resource):
 @api.route("/0/buckets/")
 class BucketsResource(Resource):
     # TODO: Add response marshalling/validation
+    @api.doc(model=bucket)
+    @api.doc(security='Bearer')  # Protects this specific endpoint in Swagger
+    @jwt_required()    
     @copy_doc(ServerAPI.get_buckets)
     def get(self) -> Dict[str, Dict]:
         """
@@ -331,7 +365,7 @@ class BucketsResource(Resource):
         return current_app.api.get_buckets()
 
 
-@api.route("/0/buckets/<string:bucket_id>")
+@api.route("/0/buckets/<string:bucket_id>",  doc=False)
 class BucketResource(Resource):
     @api.doc(model=bucket)
     @copy_doc(ServerAPI.get_bucket_metadata)
@@ -413,7 +447,7 @@ class BucketResource(Resource):
 # EVENTS
 
 
-@api.route("/0/buckets/<string:bucket_id>/events")
+@api.route("/0/buckets/<string:bucket_id>/events",  doc=False)
 class EventsResource(Resource):
     # For some reason this doesn't work with the JSONSchema variant
     # Marshalling doesn't work with JSONSchema events
@@ -472,11 +506,13 @@ class EventsResource(Resource):
 
 
 @api.route("/0/buckets/<string:bucket_id>/events/count")
-class EventCountResource(Resource):
+class EventCountResource(Resource):    
     @api.doc(model=fields.Integer)
     @api.param("start", "Start date of eventcount")
     @api.param("end", "End date of eventcount")
     @copy_doc(ServerAPI.get_eventcount)
+    @api.doc(security="Bearer")
+    @jwt_required
     def get(self, bucket_id):
         args = request.args
         start = iso8601.parse_date(args["start"]) if "start" in args else None
@@ -487,7 +523,7 @@ class EventCountResource(Resource):
         return events, 200
 
 
-@api.route("/0/buckets/<string:bucket_id>/events/<int:event_id>")
+@api.route("/0/buckets/<string:bucket_id>/events/<int:event_id>",  doc=False)
 class EventResource(Resource):
     @api.doc(model=event)
     @copy_doc(ServerAPI.get_event)
@@ -528,15 +564,7 @@ class EventResource(Resource):
         success = current_app.api.delete_event(bucket_id, event_id)
         return {"success": success}, 200
 
-def time_in_range(start, end, x):
-    """Return true if x is in the range [start, end]"""
-    if start <= end:
-        return start <= x <= end
-    else:
-        return start <= x or x <= end
-
-
-@api.route("/0/buckets/<string:bucket_id>/heartbeat")
+@api.route("/0/buckets/<string:bucket_id>/heartbeat",  doc=False)
 class HeartbeatResource(Resource):
     def __init__(self, *args, **kwargs):
         self.lock = Lock()
@@ -621,51 +649,13 @@ class HeartbeatResource(Resource):
 
 # QUERY
 
-def removeprotocals(url):
-    parts = url.split('//')
-    if len(parts) > 1:
-        return parts[1]
-    else:
-        return url
-# EXPORT AND IMPORT
-
-
-def blocked_list():
-    # Initialize the blocked_apps dictionary with empty lists for 'app' and 'url'
-    blocked_apps = {"app": [], "url": []}
-
-    # Retrieve application blocking information from the cache
-    application_blocked = db_cache.retrieve(APPLICATION_CACHE_KEY)
-    if not application_blocked:
-        db_cache.store(APPLICATION_CACHE_KEY,
-                       current_app.api.application_list())
-
-    if application_blocked:
-        # Iterate over each application in the 'app' list
-        for app_info in application_blocked.get('app', []):
-            # Check if the application is blocked
-            if app_info.get('is_blocked', False):
-                # If the application is blocked, append its name to the 'app' list in blocked_apps
-                app_name = app_info['name']
-                if is_windows():
-                    app_name += ".exe"  # Append ".exe" for Windows
-                blocked_apps['app'].append(app_name)
-
-        # Iterate over each URL entry in the 'url' list
-        for url_info in application_blocked.get('url', []):
-            # Check if the URL is blocked
-            if url_info.get('is_blocked', False):
-                # If the URL is blocked, append it to the 'url' list in blocked_apps
-                blocked_apps['url'].append(removeprotocals(url_info['url']))
-
-    return blocked_apps
-
 # TODO: Perhaps we don't need this, could be done with a query argument to /0/export instead
 
-
 @api.route("/0/buckets/<string:bucket_id>/export")
-class BucketExportResource(Resource):
+class BucketExportResource(Resource):       
     @api.doc(model=buckets_export)
+    @api.doc(security="Bearer")
+    @jwt_required()
     @copy_doc(ServerAPI.export_bucket)
     def get(self, bucket_id):
         bucket_export = current_app.api.export_bucket(bucket_id)
@@ -679,7 +669,7 @@ class BucketExportResource(Resource):
 
 
 # LOGGING
-@api.route("/0/settings")
+@api.route("/0/settings",  doc=False)
 class SaveSettings(Resource):
     @copy_doc(ServerAPI.save_settings)
     @api.doc(security="Bearer")
@@ -720,7 +710,7 @@ class SaveSettings(Resource):
             return {"message": "No settings provided"}, 400
 
 
-@api.route("/0/settings/<string:code>")
+@api.route("/0/settings/<string:code>",  doc=False)
 class DeleteSettings(Resource):
     @copy_doc(ServerAPI.delete_settings)
     @api.doc(security="Bearer")
@@ -740,10 +730,9 @@ class DeleteSettings(Resource):
             return {"message": f"No settings found with code '{code}'"}, 404
 
 
-@api.route("/0/getallsettings")
-class GetAllSettings(Resource):
+@api.route("/0/getallsettings", doc=False)
+class GetAllSettings(Resource):   
     @copy_doc(ServerAPI.retrieve_all_settings)
-    @api.doc(security="Bearer")
     def get(self):
         """
         Get settings. This is a GET request to /0/getsettings/{code}.
@@ -757,8 +746,10 @@ class GetAllSettings(Resource):
         return settings_dict
 
 
-@api.route("/0/dashboard/events")
+@api.route("/0/dashboard/events", doc=False)
 class DashboardResource(Resource):
+    @api.doc(security="Bearer")
+    # @jwt_required()
     def get(self):
         """
         Get dashboard events. GET /api/dashboards/[id]?start=YYYYMMDD&end=YYYYMMDD
@@ -786,6 +777,8 @@ class DashboardResource(Resource):
 
 @api.route("/0/dashboard/most_used_apps")
 class MostUsedAppsResource(Resource):
+    @api.doc(security="Bearer")
+    @jwt_required()   
     def get(self):
         """
          Get most used apps. This will return a list of apps that have been used in the last 24 hours.
@@ -813,14 +806,16 @@ class MostUsedAppsResource(Resource):
 
 
 @api.route("/0/applicationlist")
-class ApplicationListResource(Resource):
+class ApplicationListResource(Resource):       
     @copy_doc(ServerAPI.application_list)
+    @api.doc(security="Bearer")
+    @jwt_required()
     def get(self):
         applications = current_app.api.application_list()
         return applications, 200
 
 
-@api.route("/0/sync_server")
+@api.route("/0/sync_server",  doc=False)
 class SyncServer(Resource):
     def get(self):
         try:
@@ -844,7 +839,7 @@ class SyncServer(Resource):
 
 
 # Refresh token
-@api.route("/0/ralvie/refresh_token")
+@api.route("/0/ralvie/refresh_token",  doc=False)
 class RalvieTokenRefreshResource(Resource):
     def put(self):
         """
@@ -878,3 +873,50 @@ class RalvieTokenRefreshResource(Resource):
 class server_status(Resource):
     def get(self):
         return 200
+
+
+def time_in_range(start, end, x):
+    """Return true if x is in the range [start, end]"""
+    if start <= end:
+        return start <= x <= end
+    else:
+        return start <= x or x <= end
+    
+def removeprotocals(url):
+    parts = url.split('//')
+    if len(parts) > 1:
+        return parts[1]
+    else:
+        return url
+# EXPORT AND IMPORT
+
+
+def blocked_list():
+    # Initialize the blocked_apps dictionary with empty lists for 'app' and 'url'
+    blocked_apps = {"app": [], "url": []}
+
+    # Retrieve application blocking information from the cache
+    application_blocked = db_cache.retrieve(APPLICATION_CACHE_KEY)
+    if not application_blocked:
+        db_cache.store(APPLICATION_CACHE_KEY,
+                       current_app.api.application_list())
+
+    if application_blocked:
+        # Iterate over each application in the 'app' list
+        for app_info in application_blocked.get('app', []):
+            # Check if the application is blocked
+            if app_info.get('is_blocked', False):
+                # If the application is blocked, append its name to the 'app' list in blocked_apps
+                app_name = app_info['name']
+                if is_windows():
+                    app_name += ".exe"  # Append ".exe" for Windows
+                blocked_apps['app'].append(app_name)
+
+        # Iterate over each URL entry in the 'url' list
+        for url_info in application_blocked.get('url', []):
+            # Check if the URL is blocked
+            if url_info.get('is_blocked', False):
+                # If the URL is blocked, append it to the 'url' list in blocked_apps
+                blocked_apps['url'].append(removeprotocals(url_info['url']))
+
+    return blocked_apps
