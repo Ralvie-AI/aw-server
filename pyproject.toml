@@ -26,6 +26,7 @@ python-dateutil = "^2.9.0.post0"
 psutil = ">=4.0"
 charset-normalizer = "3.4.7"
 requests = "2.34.2"
+flask-jwt-extended = "4.7.4"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.0"
