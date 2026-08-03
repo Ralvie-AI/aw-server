@@ -4,6 +4,20 @@ from werkzeug import serving
 
 
 class FlaskLogHandler(serving.WSGIRequestHandler):
+     # Hide Python version
+    sys_version = ""
+
+    # Change or hide the server name
+    server_version = ""
+
+    def send_response(self, code, message=None):
+        """Send the response status line without a Server header."""
+        self.log_request(code)
+        self.send_response_only(code, message)
+        # self.send_header("Date", self.date_time_string())
+        # Intentionally do NOT call:
+        # self.send_header("Server", self.version_string())
+
     def __init__(self, *args):
         """
          Set logger and super class __init__ to avoid logging. getLogger (... ) in Flask 1.
