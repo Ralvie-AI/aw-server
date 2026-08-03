@@ -1,5 +1,6 @@
 import logging
 import os
+import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List
 from pathlib import Path
@@ -12,6 +13,7 @@ from flask import (
     current_app,
     send_from_directory,
 )
+from flask_jwt_extended import JWTManager
 
 import sd_datastore
 from sd_datastore import Datastore
@@ -28,6 +30,8 @@ app_folder = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(app_folder, "static")
 
 root = Blueprint("root", __name__, url_prefix="/")
+
+
 
 class AWFlask(Flask):
     def __init__(
@@ -63,6 +67,16 @@ class AWFlask(Flask):
             static_folder=static_folder,
             static_url_path=static_url_path,
         )
+        # --- JWT CONFIGURATION ---
+        
+        self.config["JWT_SECRET_KEY"] = secrets.token_hex(32)
+        self.config["JWT_HEADER_TYPE"] = ""
+
+        self.jwt = JWTManager(self)       
+        
+        # -------------------------
+        self.config['RESTX_INCLUDE_ALL_MODELS'] = True
+
         self.config["HOST"] = host  # needed for host-header check
         with self.app_context():
             _config_cors(cors_origins, testing)      
@@ -176,7 +190,6 @@ def _config_cors(cors_origins: List[str], testing: bool):
     # See: https://flask-cors.readthedocs.org/en/latest/
     CORS(current_app, resources={r"/api/*": {"origins": cors_origins}})
 
-
 # Only to be called from sd_server.main function!
 def _start(
     storage_method,
@@ -209,7 +222,7 @@ def _start(
         cors_origins=cors_origins,
         custom_static=custom_static,
     )
-
+    
     try:
         app.run(
             debug=testing,
