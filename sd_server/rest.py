@@ -6,7 +6,6 @@ from typing import Dict
 from datetime import datetime, timedelta
 
 import iso8601
-import pytz
 import jwt
 from dateutil.parser import parse
 from flask_restx import Api, Resource, fields
@@ -35,37 +34,6 @@ from sd_core.os_util import is_windows
 from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
-
-
-def get_potential_location_and_zone(minutes_difference):
-    """
-    Attempts to guess potential time zone based on assumed reference time
-    (UTC now) and time difference.
-
-    Args:
-        minutes_difference: The difference in minutes from the assumed reference time.
-
-    Returns:
-        A list of potential time zone objects, or None if information is missing.
-    """
-
-    # Assume reference time as UTC now (adjust as needed)
-    reference_time = datetime.utcnow()
-
-    # Calculate target time by adjusting reference time with minute difference
-    target_time = reference_time - timedelta(minutes=minutes_difference)
-
-    # Get potential offset based on minute difference (adjust as needed)
-    offset_minutes = minutes_difference % 60
-    offset_hours = (minutes_difference - offset_minutes) // 60
-    potential_offset = pytz.FixedOffset(offset_minutes)
-
-    # Consider all zones with the potential offset
-    potential_zones = [zone for zone in pytz.all_timezones
-                       if zone.localize(datetime.now()).utcoffset() == potential_offset]
-
-    return potential_zones
-
 
 def host_header_check(f):
     """
