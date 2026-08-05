@@ -3,7 +3,7 @@ import json
 from functools import wraps
 from threading import Lock
 from typing import Dict
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import iso8601
 import jwt
@@ -15,7 +15,6 @@ from flask import (
     jsonify,
     make_response,
     request,
-    send_from_directory,
 )
 from flask_jwt_extended import  create_access_token, jwt_required
 from flask_jwt_extended.exceptions import NoAuthorizationError
@@ -133,6 +132,18 @@ query = api.model(
         ),
     },
 )
+
+
+def login_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        creds = credentials()   
+        if not creds is None and creds.get("Authenticated"):
+            return {"message": "You need to login"}, 401
+
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 def copy_doc(api_method):
@@ -266,6 +277,7 @@ class EventsResource(Resource):
     # For some reason this doesn't work with the JSONSchema variant
     # Marshalling doesn't work with JSONSchema events
     # @api.marshal_list_with(event)
+    @login_required
     @api.doc(model=event)
     @api.param("limit", "the maximum number of requests to get")
     @api.param("start", "Start date of events")
@@ -290,6 +302,7 @@ class EventsResource(Resource):
         return events, 200
 
     # TODO: How to tell expect that it could be a list of events? Until then we can't use validate.
+    @login_required
     @api.expect(event)
     @copy_doc(ServerAPI.create_events)
     def post(self, bucket_id):
@@ -337,6 +350,7 @@ class BucketsResource(Resource):
 
 @api.route("/0/buckets/<string:bucket_id>",  doc=False)
 class BucketResource(Resource):
+    @login_required
     @api.doc(model=bucket)
     @copy_doc(ServerAPI.get_bucket_metadata)
     def get(self, bucket_id):
@@ -348,7 +362,8 @@ class BucketResource(Resource):
          @return a dict containing bucket metadata or None if not found
         """
         return current_app.api.get_bucket_metadata(bucket_id)
-
+    
+    @login_required
     @api.expect(create_bucket)
     @copy_doc(ServerAPI.create_bucket)
     def post(self, bucket_id):
@@ -371,7 +386,8 @@ class BucketResource(Resource):
             return {}, 200
         else:
             return {}, 304
-
+        
+    @login_required
     @api.expect(update_bucket)
     @copy_doc(ServerAPI.update_bucket)
     def put(self, bucket_id):
@@ -392,6 +408,7 @@ class BucketResource(Resource):
         )
         return {}, 200
 
+    @login_required
     @copy_doc(ServerAPI.delete_bucket)
     @api.param("force", "Needs to be =1 to delete a bucket it non-testing mode")
     def delete(self, bucket_id):
@@ -422,6 +439,7 @@ class EventsResource(Resource):
     # For some reason this doesn't work with the JSONSchema variant
     # Marshalling doesn't work with JSONSchema events
     # @api.marshal_list_with(event)
+    @login_required
     @api.doc(model=event)
     @api.param("limit", "the maximum number of requests to get")
     @api.param("start", "Start date of events")
@@ -446,6 +464,7 @@ class EventsResource(Resource):
         return events, 200
 
     # TODO: How to tell expect that it could be a list of events? Until then we can't use validate.
+    @login_required
     @api.expect(event)
     @copy_doc(ServerAPI.create_events)
     def post(self, bucket_id):
@@ -495,6 +514,7 @@ class EventCountResource(Resource):
 
 @api.route("/0/buckets/<string:bucket_id>/events/<int:event_id>",  doc=False)
 class EventResource(Resource):
+    @login_required
     @api.doc(model=event)
     @copy_doc(ServerAPI.get_event)
     def get(self, bucket_id: str, event_id: int):
@@ -516,6 +536,7 @@ class EventResource(Resource):
         else:
             return None, 404
 
+    @login_required
     @copy_doc(ServerAPI.delete_event)
     def delete(self, bucket_id: str, event_id: int):
         """
@@ -540,6 +561,7 @@ class HeartbeatResource(Resource):
         self.lock = Lock()
         super().__init__(*args, **kwargs)
 
+    @login_required
     @api.expect(event, validate=True)
     @api.param("pulsetime", "Largest time window allowed between heartbeats for them to merge")
     @copy_doc(ServerAPI.heartbeat)
@@ -641,6 +663,7 @@ class BucketExportResource(Resource):
 # LOGGING
 @api.route("/0/settings",  doc=False)
 class SaveSettings(Resource):
+    @login_required
     @copy_doc(ServerAPI.save_settings)
     @api.doc(security="Bearer")
     def post(self):
@@ -682,6 +705,7 @@ class SaveSettings(Resource):
 
 @api.route("/0/settings/<string:code>",  doc=False)
 class DeleteSettings(Resource):
+    @login_required
     @copy_doc(ServerAPI.delete_settings)
     @api.doc(security="Bearer")
     def delete(self, code):
@@ -701,7 +725,8 @@ class DeleteSettings(Resource):
 
 
 @api.route("/0/getallsettings", doc=False)
-class GetAllSettings(Resource):   
+class GetAllSettings(Resource):
+    @login_required
     @copy_doc(ServerAPI.retrieve_all_settings)
     def get(self):
         """
@@ -718,6 +743,7 @@ class GetAllSettings(Resource):
 
 @api.route("/0/dashboard/events", doc=False)
 class DashboardResource(Resource):
+    @login_required
     @api.doc(security="Bearer")
     # @jwt_required()
     def get(self):
@@ -787,6 +813,7 @@ class ApplicationListResource(Resource):
 
 @api.route("/0/sync_server",  doc=False)
 class SyncServer(Resource):
+    @login_required
     def get(self):
         try:
             status = current_app.api.sync_events_to_ralvie()
@@ -811,6 +838,7 @@ class SyncServer(Resource):
 # Refresh token
 @api.route("/0/ralvie/refresh_token",  doc=False)
 class RalvieTokenRefreshResource(Resource):
+    @login_required
     def put(self):
         """
          Refresh token. This is the endpoint for refreshing the access token.
