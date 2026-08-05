@@ -173,10 +173,10 @@ def get_credentials_via_subprocess(url: str, headers: dict = None):
         return credentials_dict
 
     except subprocess.TimeoutExpired:
-        print("Request timed out")
+        logger.info("Request timed out")
         return None
     except Exception as e:
-        print("Error fetching credentials:", e)
+        logger.exception("Error fetching credentials: %s", e)
         return None
     
 class ServerAPI:
