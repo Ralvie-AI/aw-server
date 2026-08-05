@@ -607,7 +607,7 @@ class ServerAPI:
 
                         logger.info(f"is_failed_event 4 => {failed_event_ids}")
                         
-                        threading.Thread(target=stop_process_by_exe, args=("sd-server.exe",)).start()
+                        # threading.Thread(target=stop_process_by_exe, args=("sd-server.exe",)).start()
 
                         logger.info(f"Events {event_ids}")
                         logger.info(f"response_data {response_data}")
@@ -1389,7 +1389,7 @@ class ServerAPI:
         else: return None
 
     def create_user(self, email, password):
-        self.db.create_user(email, password)
+        return self.db.create_user(email, password)
 
     def check_email(self, email):
         return self.db.check_email(email)

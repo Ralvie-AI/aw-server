@@ -239,7 +239,9 @@ class RalvieLoginResource(Resource):
                 reset_user()
                 return {"message": "Can not create the database."}, 500
 
-            current_app.api.create_user(user_name, password)
+            user, message = current_app.api.create_user(user_name, password)
+            if user is None:
+                logger.info(f"message => {message}")
             # Generate JWT
             user_credentials = credentials()
             payload = {
