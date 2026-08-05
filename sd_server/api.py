@@ -1608,6 +1608,13 @@ class ScreenShotQueue(threading.Thread):
             if LOGGING_VERBOSE == 1:
                 logging.info(f"upload_screenshot file_path => {file_path}")
                 logging.info(f"upload_screenshot presigned_url => {presigned_url}")
+
+            if not os.path.exists(file_path):
+                return {
+                        "status": "ERROR",
+                        "message": "File not found"
+                        }
+            
             # Open the file in binary mode
             with open(file_path, 'rb') as file_obj:
                 # Perform HTTP PUT request to upload file
