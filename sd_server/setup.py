@@ -18,6 +18,7 @@ extensions = [
     Extension("settings", ["settings.py"]),
     Extension("screen_shot", ["screen_shot.py"]),
     Extension("api", ["api.py"]),
+    Extension("tls", ["tls.py"]),
 ]
 
 

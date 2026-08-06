@@ -1,6 +1,8 @@
 import logging
 import os
 import secrets
+import ssl
+import tempfile
 from datetime import datetime, timedelta
 from typing import Dict, List
 from pathlib import Path
@@ -22,6 +24,7 @@ from .api import ServerAPI
 from .custom_static import get_custom_static_blueprint
 from .log import FlaskLogHandler
 from . import screen_shot
+from sd_server.tls import dpapi_unprotect
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,47 @@ app_folder = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(app_folder, "static")
 
 root = Blueprint("root", __name__, url_prefix="/")
+
+
+
+
+def create_ssl_context(
+    cert_file: Path,
+    encrypted_key_file: Path,
+) -> ssl.SSLContext:
+
+    private_key_pem = dpapi_unprotect(
+        encrypted_key_file.read_bytes()
+    )
+
+    temp_key = tempfile.NamedTemporaryFile(
+        mode="wb",
+        suffix=".key",
+        delete=False,
+    )
+
+    temp_path = Path(temp_key.name)
+
+    try:
+        temp_key.write(private_key_pem)
+        temp_key.close()
+
+        context = ssl.SSLContext(
+            ssl.PROTOCOL_TLS_SERVER
+        )
+
+        context.load_cert_chain(
+            certfile=str(cert_file),
+            keyfile=str(temp_path),
+        )
+
+        return context
+
+    finally:
+        try:
+            temp_path.unlink()
+        except OSError:
+            pass
 
 
 
@@ -215,6 +259,11 @@ def _start(
     cert = tls_dir / "localhost.crt"
     key = tls_dir / "localhost.key"
 
+    ssl_context = create_ssl_context(
+                cert,
+                key,
+            )
+
     app = AWFlask(
         host,
         testing=testing,
@@ -231,7 +280,7 @@ def _start(
             request_handler=FlaskLogHandler,
             use_reloader=False,
             threaded=True,
-            ssl_context=(str(cert), str(key)),
+            ssl_context=ssl_context,
         )
     except OSError as e:
         logger.exception(e)
