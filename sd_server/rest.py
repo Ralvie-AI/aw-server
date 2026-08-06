@@ -138,7 +138,8 @@ def login_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         creds = credentials()   
-        if not creds is None and creds.get("Authenticated"):
+        # Block if creds is missing OR Authenticated is False/missing
+        if creds is None or not creds.get("Authenticated"):
             return {"message": "You need to login"}, 401
 
         return func(*args, **kwargs)
