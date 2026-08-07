@@ -1,6 +1,7 @@
 import os 
 import logging
 import sys
+import ssl
 import subprocess
 from pathlib import Path 
 
@@ -40,7 +41,7 @@ def is_already_running() -> bool:
         pass
     return False
 
-
+   
 def main():
     """
      Entry point for sd - server. This is the main function called by the executable and __main__. py
@@ -126,15 +127,37 @@ def main():
             print("=" * 100)
 
             sys.exit(0)
-        else:                
-            _start(
-                host=str(settings.host),
-                port=7600,
-                testing=False,
-                storage_method=storage_method,
-                cors_origins=settings.cors_origins,
-                custom_static=settings.custom_static,
-            )        
+        else:            
+            try:                
+                _start(
+                    host=str(settings.host),
+                    port=7600,
+                    testing=False,
+                    storage_method=storage_method,
+                    cors_origins=settings.cors_origins,
+                    custom_static=settings.custom_static,
+                )
+            except (ssl.SSLError, Exception) as e:
+                # broken certs and recreate clean ones automatically
+                cert.unlink(missing_ok=True)
+                key.unlink(missing_ok=True)
+
+                tls_exe = os.path.join(get_running_path(), "tls-generator.exe")
+                try:
+                    subprocess.run([tls_exe], timeout=30)  # Waits at most 30 seconds
+                except subprocess.TimeoutExpired:
+                    logger.exception("The program took too long and was interrupted.")
+
+                _start(
+                        host=str(settings.host),
+                        port=7600,
+                        testing=False,
+                        storage_method=storage_method,
+                        cors_origins=settings.cors_origins,
+                        custom_static=settings.custom_static,
+                    )
+                
+
     elif DEVELOPMENT_MODE == 0:        
         _start(
             host=settings.host,
