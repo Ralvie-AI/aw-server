@@ -60,10 +60,11 @@ def host_header_check(f):
 
 
 authorizations = {
-    'Bearer': {
-        'type': 'apiKey',
-        'in': 'header',
-        'name': 'Authorization',
+    "Bearer": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Enter: Bearer <JWT>",
     }
 }
 
@@ -335,8 +336,7 @@ class EventsResource(Resource):
 @api.route("/0/buckets/")
 class BucketsResource(Resource):
     # TODO: Add response marshalling/validation
-    @api.doc(model=bucket)
-    @api.doc(security='Bearer')  # Protects this specific endpoint in Swagger
+    @api.doc(model=bucket, security="Bearer")
     @jwt_required()    
     @copy_doc(ServerAPI.get_buckets)
     def get(self) -> Dict[str, Dict]:
@@ -502,7 +502,7 @@ class EventCountResource(Resource):
     @api.param("end", "End date of eventcount")
     @copy_doc(ServerAPI.get_eventcount)
     @api.doc(security="Bearer")
-    @jwt_required
+    @jwt_required()
     def get(self, bucket_id):
         args = request.args
         start = iso8601.parse_date(args["start"]) if "start" in args else None
