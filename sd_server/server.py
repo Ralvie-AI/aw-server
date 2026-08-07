@@ -35,8 +35,6 @@ static_folder = os.path.join(app_folder, "static")
 root = Blueprint("root", __name__, url_prefix="/")
 
 
-
-
 def create_ssl_context(
     cert_file: Path,
     encrypted_key_file: Path,
@@ -46,22 +44,15 @@ def create_ssl_context(
         encrypted_key_file.read_bytes()
     )
 
-    temp_key = tempfile.NamedTemporaryFile(
-        mode="wb",
-        suffix=".key",
-        delete=False,
-    )
-
-    temp_path = Path(temp_key.name)
+    # Create temporary file with restricted permissions (Windows ACL / Owner-only)
+    fd, temp_path_str = tempfile.mkstemp(suffix=".key")
+    temp_path = Path(temp_path_str)
 
     try:
-        temp_key.write(private_key_pem)
-        temp_key.close()
+        with os.fdopen(fd, "wb") as temp_key:
+            temp_key.write(private_key_pem)
 
-        context = ssl.SSLContext(
-            ssl.PROTOCOL_TLS_SERVER
-        )
-
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(
             certfile=str(cert_file),
             keyfile=str(temp_path),
@@ -70,11 +61,14 @@ def create_ssl_context(
         return context
 
     finally:
-        try:
-            temp_path.unlink()
-        except OSError:
-            pass
-
+        # Overwrite file with zeroes before unlinking
+        if temp_path.exists():
+            try:
+                with open(temp_path, "wb") as f:
+                    f.write(b"\x00" * len(private_key_pem))
+                temp_path.unlink()
+            except OSError:
+                pass
 
 
 class AWFlask(Flask):
@@ -114,9 +108,33 @@ class AWFlask(Flask):
         # --- JWT CONFIGURATION ---
         
         self.config["JWT_SECRET_KEY"] = secrets.token_hex(32)
-        self.config["JWT_HEADER_TYPE"] = ""
+        self.config["JWT_HEADER_TYPE"] = "Bearer"
+        # self.config["JWT_HEADER_TYPE"] = ""
 
-        self.jwt = JWTManager(self)       
+        self.jwt = JWTManager(self)
+
+        @self.jwt.invalid_token_loader
+        def invalid_token_callback(reason):
+            return {
+                "error": "invalid_token",
+                "message": reason,
+            }, 401
+
+
+        @self.jwt.unauthorized_loader
+        def missing_token_callback(reason):
+            return {
+                "error": "authorization_required",
+                "message": reason,
+            }, 401
+
+
+        @self.jwt.expired_token_loader
+        def expired_token_callback(jwt_header, jwt_payload):
+            return {
+                "error": "token_expired",
+                "message": "The access token has expired.",
+            }, 401
         
         # -------------------------
         self.config['RESTX_INCLUDE_ALL_MODELS'] = True
