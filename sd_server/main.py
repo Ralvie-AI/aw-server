@@ -3,7 +3,6 @@ import logging
 import sys
 import ssl
 import subprocess
-from pathlib import Path 
 
 import psutil
 
@@ -17,8 +16,10 @@ from .config import config
 from .server import _start
 from .const import GITHUB_COMMIT_ID
 
-
 logger = logging.getLogger(__name__)
+
+
+TLS_EXE = os.path.join(get_running_path(), "tls-generator.exe")
 
 def is_already_running() -> bool:
     """Checks for another instance of the bundled .exe or script."""
@@ -49,9 +50,8 @@ def main():
     """Called from the executable and __main__.py"""
 
     if not os.path.exists(TLS_DIR) or os.path.exists(CERT_FILE) or os.path.exists(KEY_FILE):
-        tls_exe = os.path.join(get_running_path(), "tls-generator.exe")
         try:
-            subprocess.run([tls_exe], timeout=30)  # Waits at most 30 seconds
+            subprocess.run([TLS_EXE], timeout=30)  # Waits at most 30 seconds
         except subprocess.TimeoutExpired:
             logger.exception("The program took too long and was interrupted.")
 
@@ -134,12 +134,12 @@ def main():
                 )
             except (ssl.SSLError, Exception) as e:
                 # broken certs and recreate clean ones automatically
-                cert.unlink(missing_ok=True)
-                key.unlink(missing_ok=True)
+                CERT_FILE.unlink(missing_ok=True)
+                KEY_FILE.unlink(missing_ok=True)
 
-                tls_exe = os.path.join(get_running_path(), "tls-generator.exe")
+                
                 try:
-                    subprocess.run([tls_exe], timeout=30)  # Waits at most 30 seconds
+                    subprocess.run([TLS_EXE], timeout=30)  # Waits at most 30 seconds
                 except subprocess.TimeoutExpired:
                     logger.exception("The program took too long and was interrupted.")
 
