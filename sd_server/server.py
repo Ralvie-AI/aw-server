@@ -25,6 +25,7 @@ from .custom_static import get_custom_static_blueprint
 from .log import FlaskLogHandler
 from . import screen_shot
 from sd_server.tls import dpapi_unprotect
+from sd_core.const import CERT_FILE, KEY_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -272,14 +273,9 @@ def _start(
      @param custom_static - Dict of custom static variables to pass to
     """
 
-    tls_dir = Path(os.getenv("LOCALAPPDATA")) / "Sundial" / "Sundial" / "tls"
-
-    cert = tls_dir / "localhost.crt"
-    key = tls_dir / "localhost.key"
-
     ssl_context = create_ssl_context(
-                cert,
-                key,
+                CERT_FILE,
+                KEY_FILE,
             )
 
     app = AWFlask(
