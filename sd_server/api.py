@@ -84,6 +84,7 @@ logger = logging.getLogger(__name__)
 if os.environ.get('SSLKEYLOGFILE'):
     os.environ.pop('SSLKEYLOGFILE', None)
 
+CREDENTIAL_EXE_PATH = os.path.join(get_running_path(), "credential.exe")
 
 def get_device_id() -> str:
     path = Path(get_data_dir("sd-server")) / "device_id"
@@ -146,7 +147,6 @@ def get_credentials_via_subprocess(url: str, headers: dict = None):
     from sd_server.credentials import decrypt_to_dict
     try:
         headers_str = json.dumps(headers or {})        
-        executable_path = os.path.join(get_running_path(), "credential.exe")
         # Extra guard for Windows to ensure no window flashes
         creation_flags = 0
         if sys.platform == "win32":
@@ -154,7 +154,7 @@ def get_credentials_via_subprocess(url: str, headers: dict = None):
 
         # Run the compiled subprocess
         result = subprocess.run(
-            [executable_path, url, headers_str],
+            [CREDENTIAL_EXE_PATH, url, headers_str],
             capture_output=True,
             text=True,
             timeout=40,
