@@ -509,12 +509,16 @@ class ServerAPI:
                         return {"status": "No need to sync the event not more than 30 minute."}
                 
                 local_zone = str(get_localzone()) 
+
+                if LOGGING_VERBOSE == 1:
+                    logger.info(f"before events => {events}")
+                    
                 for data in events:                    
                     data["clientTimeZone"] = local_zone
                     data["sundial_version"] = RELEASE_VERSION
-                    if data.get("app") == "Visual Studio Code":
+                    if data.get("application_name") == "Visual Studio Code":
                         data["application_name"] = "Code"
-
+    
                 payload = {"userId": userId, "companyId": companyId, "events": events, "timeout": 60}
 
                 if LOGGING_VERBOSE == 1:
