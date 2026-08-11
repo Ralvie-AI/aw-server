@@ -696,10 +696,7 @@ class ServerAPI:
             if LOGGING_VERBOSE == 1:
                 logger.info(f"orc_data => {ocr_data}")
 
-            screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)      
-            # logger.info(f"record.local_capture_at => {record.local_capture_at}, type => {type(record.local_capture_at)}")      
-            # logger.info(f"record.created_at => {record.created_at}, type => {type(record.created_at)}")
-
+            screenshot_capture_time = self.get_screenshot_capture_time(record.file_path)
             local_time_zone = str(get_localzone())
             
             payload = {"userId": userId, 
@@ -1596,7 +1593,10 @@ class ScreenShotQueue(threading.Thread):
                 result = None, None, REJECTED_SYNC_STATUS
             else:
                 result = data.get('data').get("preSignedUrl"), data.get('data').get("objectKey"), data.get('code')
-            logger.info(f"get_pre_signed_url result => {result}")
+
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"get_pre_signed_url result => {result}")
+
             return result      
 
         except Exception as e:
