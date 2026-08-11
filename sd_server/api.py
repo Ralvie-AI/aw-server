@@ -511,7 +511,11 @@ class ServerAPI:
                 local_zone = str(get_localzone()) 
                 for data in events:                    
                     data["clientTimeZone"] = local_zone
-                    data["sundial_version"] = RELEASE_VERSION 
+                    data["sundial_version"] = RELEASE_VERSION
+                    if data.get("app") == "Visual Studio Code":
+                        data["application_name"] = "Code"
+
+                logger.info(f"events => {events}")
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events, "timeout": 60}
 
@@ -618,10 +622,9 @@ class ServerAPI:
         return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def is_empty(self, record):
-        if record.event.application_name is None or record.event.application_name.strip() == "" or not len(record.event.application_name) > 2 :
-            return record.event.app
-        else:
-            return record.event.application_name
+        if record.event.app == "Visual Studio Code":
+            return "Code"
+        return record.event.app
 
     def get_local_capture_at(self, local_time_zone, record):
         if record.local_capture_at:
@@ -693,7 +696,7 @@ class ServerAPI:
 
             if LOGGING_VERBOSE == 1:
                 logger.info(f"screenshot payload => {payload}")
-
+            logger.info(f"screenshot payload => {payload}")
             endpoint = "/web/events/screenshot"
             uploaded_success = None
    
