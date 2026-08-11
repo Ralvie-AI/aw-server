@@ -541,7 +541,7 @@ class ServerAPI:
                 for data in events:                    
                     data["clientTimeZone"] = local_zone
                     data["sundial_version"] = RELEASE_VERSION
-                    if data.get("app") == "Visual Studio Code":
+                    if data.get("application_name") == "Visual Studio Code":
                         data["application_name"] = "Code"
                     
                 payload = {"userId": userId, "companyId": companyId, "events": events, "timeout": 60}
