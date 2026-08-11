@@ -1,5 +1,5 @@
 import os
-from sd_core.const import DEVELOPMENT_MODE, STAGING, CONFIG_SERVER, PUBLIC_KEY, TMP_VERSION, CACHE_KEY, FORCE_VERBOSE
+from sd_core.const import DEVELOPMENT_MODE, STAGING, CONFIG_SERVER, PUBLIC_KEY, TMP_VERSION, CACHE_KEY, FORCE_VERBOSE, TMP_VERSION
 
 PROTOCOL = "https"
 
@@ -10,8 +10,6 @@ STATUS_SYNC_FIRST_TIME = 30 # 30 seconds
 
 HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
-
-TMP_VERSION = "1.3.3"
 
 if STAGING == 1:
     HOST = HOST_DEV
