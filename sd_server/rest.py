@@ -30,6 +30,8 @@ from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
 from sd_main.manager import Manager
 
+from sd_core.const import CACHE_KEY as cache_key
+
 application_cache_key = "application_cache"
 manager = Manager()
 
@@ -230,7 +232,7 @@ class UserResource(Resource):
 
          @return a dictionary containing the user's details and a boolean indicating if the user was
         """
-        cache_key = "Sundial"
+        #cache_key = "Sundial"
         cached_credentials = credentials()
         # If internet connection is not connected to internet and try again.
         if not is_internet_connected():
@@ -384,7 +386,7 @@ class RalvieLoginResource(Resource):
 
          @return A JSON with the result of the authentication and user
         """
-        cache_key = "Sundial"
+        #cache_key = "Sundial"
         refresh_token = ""
         # Check Internet Connectivity
         response_data = {}

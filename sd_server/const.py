@@ -1,15 +1,7 @@
 import os
-# DEVELOPMENT_MODE = 0 is for local development.
-# DEVELOPMENT_MODE = 1 is for production.
-
-DEVELOPMENT_MODE = 0      
-
-STAGING = 1
+from sd_core.const import DEVELOPMENT_MODE, STAGING, CONFIG_SERVER, PUBLIC_KEY, TMP_VERSION, CACHE_KEY, FORCE_VERBOSE
 
 PROTOCOL = "https"
-
-PUBLIC_KEY = os.path.join(os.path.expanduser("~"),
-                "Library", "Application Support", "Sundial", "sd-server", '{email}-{company_id}-public.pem')
 
 SYNC_TIME = 600 # 10  minutes
 SCREEN_SHOT_TIME = 60 # 1  minutes
@@ -20,14 +12,13 @@ HOST_DEV = 'ralvie.minervaiotstaging.com'
 HOST_PRO = 'me.ralvie.ai'
 
 TMP_VERSION = "1.3.3"
+
 if STAGING == 1:
     HOST = HOST_DEV
     VERSION_DISPLAY = f"{TMP_VERSION}_beta"
 else:
     HOST = HOST_PRO
     VERSION_DISPLAY = f"{TMP_VERSION}"
-
-CACHE_KEY = "Sundial"
 
  ##### RESPONSE CODE FROM RALVIE SERVER #####
 SUCCESSFUL_SYNC_STATUS = "RCI0000" # store the events successful in server side

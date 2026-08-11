@@ -17,11 +17,10 @@ from datetime import datetime
 from mss import mss
 
 from sd_core.cache import keychain_item_exists, get_password
-from sd_server.const import CACHE_KEY
+from sd_core.const import CACHE_KEY, PIPE_NAME
+
 
 logger = logging.getLogger(__name__)
-
-PIPE_NAME = r'\\.\pipe\AppSocket'
 
 
 def derive_key(email: str) -> bytes:

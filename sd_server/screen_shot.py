@@ -17,13 +17,9 @@ from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm, validate_
 from sd_main.sd_desktop.util import (credentials)
 from sd_server.utils import get_uuid_address
 
-logger = logging.getLogger(__name__)
+from sd_core.const import PUBLIC_KEY
 
-if sys.platform == "win32":
-    PUBLIC_KEY = os.path.join(os.environ['LOCALAPPDATA'], "Sundial", "Sundial", "sd-server", "public.pem")
-elif sys.platform == "darwin":
-    PUBLIC_KEY = os.path.join(os.path.expanduser("~"),
-                "Library", "Application Support", "Sundial", "sd-server", '{email}-{company_id}-public.pem')
+logger = logging.getLogger(__name__)
 
 blueprint = Blueprint("screenshot", __name__, url_prefix="/screenshot")
 
@@ -144,7 +140,7 @@ def get_event_time_range():
         result['duration'] = float(event.duration) 
         events.append(result)
 
-    # logger.info(f"events => {events}")
+
     if events:
         return jsonify({
             'result': json.dumps(events),
