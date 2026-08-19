@@ -8,9 +8,12 @@ import gc
 import os
 import time
 import logging
+import psutil
+
+from sd_core.const import STAGING
+from sd_core.log import setup_logging
 
 logger = logging.getLogger(__name__)
-
 
 
 class ActiveWindowOCRText:
@@ -34,7 +37,7 @@ class ActiveWindowOCRText:
         except Exception:
             #logger.exception("[OCRText] Warmup failed")
             raise
-            
+
 
     def use_mps(self) -> bool:
         """Detect apple silicon"""
@@ -46,7 +49,7 @@ class ActiveWindowOCRText:
                 return False
         except Exception:
             return False
-        
+
     def has_intel_cpu(self) -> bool:
         """Rough check if CPU is Intel."""
         try:
@@ -76,7 +79,7 @@ class ActiveWindowOCRText:
         except Exception as e:
             #logger.exception(f"[OCRText] Failed to import RapidOCR: {e}")
             raise RuntimeError(f"No suitable RapidOCR backend found. {e}")
-        
+
         # # --- Apple Silicon (Torch) ---
         if self.use_mps():
             #logger.info("[OCRText] Apple Silicon detected, checking Torch + MPS support")
@@ -141,10 +144,20 @@ class ActiveWindowOCRText:
             logger.exception(f"[OCRText] ONNX Runtime backend failed to load: {e}")
             raise RuntimeError("All RapidOCR backends failed to initialize.")
 
-    
-        
+
+
     def run_ocr(self, img_path: str, min_conf=0.9, save_box_info=False, save_conf_info=False):
-        t_init = time.perf_counter()
+
+        # ---------------- Profiler Initialization ----------------
+        process = psutil.Process(os.getpid())
+        cpu_count = psutil.cpu_count(logical=True) 
+        
+        # Prime CPU calculation & get baseline memory
+        process.cpu_percent(interval=None)
+        start_cpu_time = process.cpu_times()
+        ram_start_mb = process.memory_info().rss / (1024 * 1024)
+
+        t_init = time.perf_counter()    
 
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         if img is None:
@@ -169,6 +182,35 @@ class ActiveWindowOCRText:
             raise
 
         ts = time.strftime("%Y-%m-%d_%H-%M-%S")
+
+        # ---------------- Profiling Metrics ----------------
+        elapsed_time = time.perf_counter() - t_init
+        ram_end_mb = process.memory_info().rss / (1024 * 1024)
+        ram_increase_mb = max(0.0, ram_end_mb - ram_start_mb)
+
+        # Calculate total multi-threaded CPU usage across all cores during the run
+        end_cpu_time = process.cpu_times()
+        total_cpu_seconds = (end_cpu_time.user - start_cpu_time.user) + (end_cpu_time.system - start_cpu_time.system)
+        cpu_usage_pct = ((total_cpu_seconds / elapsed_time * 100) / cpu_count) if elapsed_time > 0 else 0.0
+
+        # GPU usage formatting
+        gpu_usage = "N/A"
+
+        # Print / Log formatted metrics
+        metrics_summary = (
+            f"\n--- Resource Usage ---"
+            f"\nRuntime      : {elapsed_time:.2f} s"
+            f"\nCPU Usage    : {cpu_usage_pct:.1f}%"
+            f"\nRAM Usage    : {ram_end_mb:.1f} MB"
+            f"\nRAM Increase : {ram_increase_mb:.1f} MB"
+            f"\nGPU Usage    : {gpu_usage}"
+            f"\n----------------------"
+        )
+
+        if STAGING == 1:
+            setup_logging("sd-ocr-activity", log_file=True)
+            print(metrics_summary)
+            logger.info(metrics_summary)
 
         #No text detected 
         if not output:
@@ -206,14 +248,10 @@ class ActiveWindowOCRText:
             }
 
         return json_output
-    
-
-if __name__ == "__main__":
-    ocr = ActiveWindowOCRText(warmup=True)
-    ocr.run_ocr(
-    img_path="/Users/armatura/Library/Application Support/OCRTest/ss_test.png"
-)
 
 
-
-    
+# if __name__ == "__main__":
+#     ocr = ActiveWindowOCRText(warmup=True)
+#     ocr.run_ocr(
+#     img_path=""
+# )
