@@ -109,8 +109,7 @@ class AWFlask(Flask):
         # --- JWT CONFIGURATION ---
         
         self.config["JWT_SECRET_KEY"] = secrets.token_hex(32)
-        self.config["JWT_HEADER_TYPE"] = "Bearer"
-        # self.config["JWT_HEADER_TYPE"] = ""
+        self.config["JWT_HEADER_TYPE"] = ""
 
         self.jwt = JWTManager(self)
 

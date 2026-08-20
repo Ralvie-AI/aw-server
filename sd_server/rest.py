@@ -774,6 +774,24 @@ class DashboardResource(Resource):
 
 @api.route("/0/dashboard/most_used_apps")
 class MostUsedAppsResource(Resource):
+    # @api.param("end", "End date")
+    # @api.param("start", "Start date")  
+    @api.doc(
+        params={
+            "start": {
+                "description": "Start date",
+                "type": "string",
+                "format": "date",
+                "example": "2026-08-01",
+            },
+            "end": {
+                "description": "End date",
+                "type": "string",
+                "format": "date",
+                "example": "2026-08-20",
+            },
+        }
+    )  
     @api.doc(security="Bearer")
     @jwt_required()   
     def get(self):
