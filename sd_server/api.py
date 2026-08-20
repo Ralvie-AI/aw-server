@@ -36,11 +36,13 @@ from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string, convert_to_local_datetime_string
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION, PUBLIC_KEY, STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME
+from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION, PUBLIC_KEY, STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME, STAGING
 from sd_server.ocr_active import ActiveWindowOCRText
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 from sd_main.sd_desktop.util import (credentials)
 from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
+from sd_server.resource_monitor import ResourceMonitor
+from sd_core.log import setup_logging
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -1937,8 +1939,24 @@ class ScreenShotQueue(threading.Thread):
                                 #     logger.warning(f"[WAIT] Screenshot not ready: {active_file}")
                                 #     continue  
 
-                                ocr_result = self.ocr.run_ocr(img_path=active_file)
-                                logger.debug(f'ocr result => {ocr_result}')
+                                monitor = ResourceMonitor()
+                                monitor.start()
+                                try:
+                                    ocr_result = self.ocr.run_ocr(img_path=active_file)
+                                    logger.debug(f'ocr result => {ocr_result}')
+                                finally:
+                                    usage = monitor.stop()
+                                if STAGING == 1:
+                                    setup_logging("sd-ocr-activity", log_file=True)
+                                    metrics_summary = (
+                                        f"\n--- Resource Usage ---"
+                                        f"\nRuntime       : {usage.elapsed_seconds:.2f} s"
+                                        f"\nPeak CPU      : {usage.peak_cpu_percent:.1f}%"
+                                        f"\nPeak memory   : {usage.peak_memory_mb:.1f} MB"
+                                        f"\n----------------------"
+                                        f"\n"
+                                    )
+                                    logger.info(metrics_summary)
 
                                 if not isinstance(ocr_result, str):
                                     ocr_result = json.dumps(ocr_result)

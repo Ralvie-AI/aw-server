@@ -161,8 +161,8 @@ class ActiveWindowOCRText:
         # t_init = time.perf_counter()    
 
 
-        monitor = ResourceMonitor()
-        monitor.start()
+        # monitor = ResourceMonitor()
+        # monitor.start()
 
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         if img is None:
@@ -217,13 +217,13 @@ class ActiveWindowOCRText:
         #     print(metrics_summary)
         #     #logger.info(metrics_summary)
 
-        usage = monitor.stop()
+        # usage = monitor.stop()
 
-        if STAGING == 1:
-            setup_logging("sd-ocr-activity", log_file=True)
-            logger.info(f"run time: {usage.elapsed_seconds:.2f}s")
-            logger.info(f"Peak CPU: {usage.peak_cpu_percent:.1f}%")
-            logger.info(f"Peak memory: {usage.peak_memory_mb:.1f} MB")
+        # if STAGING == 1:
+        #     setup_logging("sd-ocr-activity", log_file=True)
+        #     logger.info(f"run time: {usage.elapsed_seconds:.2f}s")
+        #     logger.info(f"Peak CPU: {usage.peak_cpu_percent:.1f}%")
+        #     logger.info(f"Peak memory: {usage.peak_memory_mb:.1f} MB")
 
         #No text detected 
         if not output:
