@@ -12,6 +12,7 @@ import psutil
 
 from sd_core.const import STAGING
 from sd_core.log import setup_logging
+from sd_server.resource_monitor import ResourceMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -148,16 +149,20 @@ class ActiveWindowOCRText:
 
     def run_ocr(self, img_path: str, min_conf=0.9, save_box_info=False, save_conf_info=False):
 
-        # ---------------- Profiler Initialization ----------------
-        process = psutil.Process(os.getpid())
-        cpu_count = psutil.cpu_count(logical=True) 
+        # # ---------------- Profiler Initialization ----------------
+        # process = psutil.Process(os.getpid())
+        # cpu_count = psutil.cpu_count(logical=True) 
         
-        # Prime CPU calculation & get baseline memory
-        process.cpu_percent(interval=None)
-        start_cpu_time = process.cpu_times()
-        ram_start_mb = process.memory_info().rss / (1024 * 1024)
+        # # Prime CPU calculation & get baseline memory
+        # process.cpu_percent(interval=None)
+        # start_cpu_time = process.cpu_times()
+        # ram_start_mb = process.memory_info().rss / (1024 * 1024)
 
-        t_init = time.perf_counter()    
+        # t_init = time.perf_counter()    
+
+
+        monitor = ResourceMonitor()
+        monitor.start()
 
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         if img is None:
@@ -183,34 +188,42 @@ class ActiveWindowOCRText:
 
         ts = time.strftime("%Y-%m-%d_%H-%M-%S")
 
-        # ---------------- Profiling Metrics ----------------
-        elapsed_time = time.perf_counter() - t_init
-        ram_end_mb = process.memory_info().rss / (1024 * 1024)
-        ram_increase_mb = max(0.0, ram_end_mb - ram_start_mb)
+        # # ---------------- Profiling Metrics ----------------
+        # elapsed_time = time.perf_counter() - t_init
+        # ram_end_mb = process.memory_info().rss / (1024 * 1024)
+        # ram_increase_mb = max(0.0, ram_end_mb - ram_start_mb)
 
-        # Calculate total multi-threaded CPU usage across all cores during the run
-        end_cpu_time = process.cpu_times()
-        total_cpu_seconds = (end_cpu_time.user - start_cpu_time.user) + (end_cpu_time.system - start_cpu_time.system)
-        cpu_usage_pct = ((total_cpu_seconds / elapsed_time * 100) / cpu_count) if elapsed_time > 0 else 0.0
+        # # Calculate total multi-threaded CPU usage across all cores during the run
+        # end_cpu_time = process.cpu_times()
+        # total_cpu_seconds = (end_cpu_time.user - start_cpu_time.user) + (end_cpu_time.system - start_cpu_time.system)
+        # cpu_usage_pct = ((total_cpu_seconds / elapsed_time * 100) / cpu_count) if elapsed_time > 0 else 0.0
 
-        # GPU usage formatting
-        gpu_usage = "N/A"
+        # # GPU usage formatting
+        # gpu_usage = "N/A"
 
-        # Print / Log formatted metrics
-        metrics_summary = (
-            f"\n--- Resource Usage ---"
-            f"\nRuntime      : {elapsed_time:.2f} s"
-            f"\nCPU Usage    : {cpu_usage_pct:.1f}%"
-            f"\nRAM Usage    : {ram_end_mb:.1f} MB"
-            f"\nRAM Increase : {ram_increase_mb:.1f} MB"
-            f"\nGPU Usage    : {gpu_usage}"
-            f"\n----------------------"
-        )
+        # # Print / Log formatted metrics
+        # metrics_summary = (
+        #     f"\n--- Resource Usage ---"
+        #     f"\nRuntime      : {elapsed_time:.2f} s"
+        #     f"\nCPU Usage    : {cpu_usage_pct:.1f}%"
+        #     f"\nRAM Usage    : {ram_end_mb:.1f} MB"
+        #     f"\nRAM Increase : {ram_increase_mb:.1f} MB"
+        #     f"\nGPU Usage    : {gpu_usage}"
+        #     f"\n----------------------"
+        # )
+
+        # if STAGING == 1:
+        #     setup_logging("sd-ocr-activity", log_file=True)
+        #     print(metrics_summary)
+        #     #logger.info(metrics_summary)
+
+        usage = monitor.stop()
 
         if STAGING == 1:
             setup_logging("sd-ocr-activity", log_file=True)
-            print(metrics_summary)
-            logger.info(metrics_summary)
+            logger.info(f"run time: {usage.elapsed_seconds:.2f}s")
+            logger.info(f"Peak CPU: {usage.peak_cpu_percent:.1f}%")
+            logger.info(f"Peak memory: {usage.peak_memory_mb:.1f} MB")
 
         #No text detected 
         if not output:
