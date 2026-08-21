@@ -134,6 +134,23 @@ query = api.model(
     },
 )
 
+date_range_parser = api.parser()
+
+date_range_parser.add_argument(
+    "start",
+    type=str,
+    required=True,
+    location="args",
+    help="Start date in YYYY-MM-DD format.",
+)
+
+date_range_parser.add_argument(
+    "end",
+    type=str,
+    required=True,
+    location="args",
+    help="End date in YYYY-MM-DD format.",
+)
 
 def login_required(func):
     @wraps(func)
@@ -774,24 +791,7 @@ class DashboardResource(Resource):
 
 @api.route("/0/dashboard/most_used_apps")
 class MostUsedAppsResource(Resource):
-    # @api.param("end", "End date")
-    # @api.param("start", "Start date")  
-    @api.doc(
-        params={
-            "start": {
-                "description": "Start date",
-                "type": "string",
-                "format": "date",
-                "example": "2026-08-01",
-            },
-            "end": {
-                "description": "End date",
-                "type": "string",
-                "format": "date",
-                "example": "2026-08-20",
-            },
-        }
-    )  
+    @api.expect(date_range_parser)
     @api.doc(security="Bearer")
     @jwt_required()   
     def get(self):
