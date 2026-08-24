@@ -6,10 +6,13 @@ from functools import wraps
 from threading import Lock
 from typing import Dict
 from datetime import datetime, timedelta, date, time
-
+from dateutil.parser import parse
 import iso8601
 import pytz
 import jwt
+from flask_jwt_extended import  create_access_token, jwt_required
+from flask_jwt_extended.exceptions import NoAuthorizationError
+
 from flask_restx import Api, Resource, fields
 from flask import (
     Blueprint,
@@ -31,6 +34,7 @@ from .exceptions import BadRequest, Unauthorized
 from sd_main.manager import Manager
 
 from sd_core.const import CACHE_KEY as cache_key
+from flask import jsonify
 
 application_cache_key = "application_cache"
 manager = Manager()
@@ -92,20 +96,30 @@ def host_header_check(f):
 
 
 authorizations = {
-    'Bearer': {
-        'type': 'apiKey',
-        'in': 'header',
-        'name': 'Authorization',
+    "Bearer": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Enter: Bearer <JWT>",
     }
 }
+
 blueprint = Blueprint("api", __name__, url_prefix="/api")
 api = Api(blueprint, doc="/",
           decorators=[host_header_check], authorizations=authorizations)
+
+@api.errorhandler(NoAuthorizationError)
+def handle_no_auth(error):
+    return {
+        "message": "Authorization token required to execute this endpoint.",
+        "error": "unauthorized"
+    }, 401
 
 # Loads event and bucket schema from JSONSchema in sd_core
 event = api.schema_model("Event", schema.get_json_schema("event"))
 bucket = api.schema_model("Bucket", schema.get_json_schema("bucket"))
 buckets_export = api.schema_model("Export", schema.get_json_schema("export"))
+user = api.schema_model("User", schema.get_json_schema("user"))
 
 # TODO: Construct all the models from JSONSchema?
 #       A downside to contructing from JSONSchema: flask-restplus does not have marshalling support
@@ -151,6 +165,17 @@ query = api.model(
     },
 )
 
+def login_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        creds = credentials()   
+        # Block if creds is missing OR Authenticated is False/missing
+        if creds is None or not creds.get("Authenticated"):
+            return {"message": "You need to login"}, 401
+
+        return func(*args, **kwargs)
+
+    return wrapper
 
 def copy_doc(api_method):
     """
@@ -204,7 +229,7 @@ def format_duration(duration):
     return '1s'
 
 
-@api.route("/0/info")
+@api.route("/0/info", doc=False)
 class InfoResource(Resource):
     @api.doc(security="Bearer")
     @api.marshal_with(info)
@@ -218,86 +243,7 @@ class InfoResource(Resource):
         """
         return current_app.api.get_info()
 
-
-# Users
-
-
-@api.route("/0/user")
-class UserResource(Resource):
-    @api.doc(security="Bearer")
-    def post(self):
-        """
-         Create a Sundial user. This is a POST request to the / v1 / users endpoint.
-
-
-         @return a dictionary containing the user's details and a boolean indicating if the user was
-        """
-        #cache_key = "Sundial"
-        cached_credentials = credentials()
-        # If internet connection is not connected to internet and try again.
-        if not is_internet_connected():
-            print("Please connect to internet and try again.")
-        data = request.get_json()
-        # Returns a 400 if the user is not a valid email or password
-        if not data['email']:
-            return {"message": "User name is mandatory"}, 400
-        elif not data['password']:
-            return {"message": "Password is mandatory"}, 400
-        # Returns the user who is currently using the cached credentials.
-        if cached_credentials is not None:
-            user = cached_credentials.get("encrypted_db_key")
-        else:
-            user = None
-        # Create a user and authorize it
-        if True:
-            result = current_app.api.create_user(data)
-            # This method is used to authorize and create a company.
-            if result.status_code == 200 and json.loads(result.text)["code"] == 'UASI0001':
-                userPayload = {
-                    "userName": data['email'],
-                    "password": data['password']
-                }
-                authResult = current_app.api.authorize(userPayload)
-
-                # Returns the auth result as JSON
-                if 'company' not in data:
-                    return json.loads(authResult.text), 200
-
-                # This method is used to create a company and create a company
-                if authResult.status_code == 200 and json.loads(authResult.text)["code"] == 'RCI0000':
-                    token = json.loads(authResult.text)["data"]["access_token"]
-                    id = json.loads(authResult.text)["data"]["id"]
-                    companyPayload = {
-                        "name": data['company'],
-                        "code": data['company'],
-                        "status": "ACTIVE"
-                    }
-
-                    companyResult = current_app.api.create_company(
-                        companyPayload, 'Bearer ' + token)
-
-                    # This method is called when the user is created
-                    if companyResult.status_code == 200 and json.loads(companyResult.text)["code"] == 'UASI0006':
-                        current_app.api.get_user_credentials(
-                            id, 'Bearer ' + token)
-                        init_db = current_app.api.init_db()
-                        # This function is called when the user is created
-                        if init_db:
-                            return {"message": "Account created successfully"}, 200
-                        else:
-                            reset_user()
-                            return {"message": "Something went wrong"}, 500
-                    else:
-                        return json.loads(companyResult.text), 200
-                else:
-                    return json.loads(authResult.text), 200
-            else:
-                return json.loads(result.text), 200
-        else:
-            return {"message": "User already exist"}, 200
-
-
-@api.route("/0/company")
+@api.route("/0/company", doc=False)
 class CompanyResource(Resource):
     def post(self):
         """
@@ -329,55 +275,77 @@ class CompanyResource(Resource):
             return json.loads(companyResult.text), companyResult.status_code
 
 
-# Login by system credentials
-@api.route("/0/login")
-class LoginResource(Resource):
+# # Login by system credentials
+# @api.route("/0/login")
+# class LoginResource(Resource):
+#     def post(self):
+#         """
+#          Authenticate and encode user credentials. This is a POST request to / api / v1 / Sundial
+
+
+#          @return Response code and JSON
+#         """
+#         data = request.get_json()
+#         cached_credentials = credentials()
+#         user_key = cached_credentials.get("user_key")
+
+#         # Returns a JSON object with the user_key data.
+#         if user_key:
+#             # Authenticates the user with the given data.
+#             if authenticate(data['userName'], data['password']):
+#                 encoded_jwt = jwt.encode({"user": data['userName'], "email": cached_credentials.get("email"),
+#                                           "phone": cached_credentials.get("phone")}, user_key, algorithm="HS256")
+#                 return {"code": "SDI0000", "message": "Success", "data": {"token": encoded_jwt}}, 200
+#             else:
+#                 return {"code": "SDE0000", "message": "Username or password is wrong"}, 200
+#         else:
+#             return {"message": "User does not exist"}, 200
+
+
+#     def get(self):
+#         """
+#          Get method for Sundial. json API. This method is used to check if user exist or not.
+
+
+#          @return 200 if user exist 401 if user does not exist
+#         """
+#         data = request.get_json()
+#         cached_credentials = credentials()
+#         # Returns the encrypted_db_key if the cached credentials are cached.
+#         if cached_credentials is not None:
+#             user_key = cached_credentials.get("encrypted_db_key")
+#         else:
+#             user_key = None
+#         # Returns a 200 if user_key is not found 401 if user_key is not present
+#         if user_key:
+#             return {"message": "User exist"}, 200
+#         else:
+#             return {"message": "User does not exist"}, 401
+
+# Users
+@api.route('/0/login')
+class Login(Resource):
+    @api.expect(user, validate=True)
     def post(self):
-        """
-         Authenticate and encode user credentials. This is a POST request to / api / v1 / Sundial
+        """Authenticate a user and return a JWT access token."""
 
-
-         @return Response code and JSON
-        """
         data = request.get_json()
-        cached_credentials = credentials()
-        user_key = cached_credentials.get("user_key")
 
-        # Returns a JSON object with the user_key data.
-        if user_key:
-            # Authenticates the user with the given data.
-            if authenticate(data['userName'], data['password']):
-                encoded_jwt = jwt.encode({"user": data['userName'], "email": cached_credentials.get("email"),
-                                          "phone": cached_credentials.get("phone")}, user_key, algorithm="HS256")
-                return {"code": "SDI0000", "message": "Success", "data": {"token": encoded_jwt}}, 200
-            else:
-                return {"code": "SDE0000", "message": "Username or password is wrong"}, 200
-        else:
-            return {"message": "User does not exist"}, 200
-
-    def get(self):
-        """
-         Get method for Sundial. json API. This method is used to check if user exist or not.
-
-
-         @return 200 if user exist 401 if user does not exist
-        """
-        data = request.get_json()
-        cached_credentials = credentials()
-        # Returns the encrypted_db_key if the cached credentials are cached.
-        if cached_credentials is not None:
-            user_key = cached_credentials.get("encrypted_db_key")
-        else:
-            user_key = None
-        # Returns a 200 if user_key is not found 401 if user_key is not present
-        if user_key:
-            return {"message": "User exist"}, 200
-        else:
-            return {"message": "User does not exist"}, 401
-
-
+        # 1. Fetch the user by email from the Peewee database
+        if not current_app.api.check_email(data['email']):
+            return {"message": "Invalid email or password"}, 401
+        
+        # 2. Compare the plain text password with the stored hash
+        is_password, user_id = current_app.api.check_password(data['email'], data['password'])
+        if is_password:
+            # 3. If correct, generate the JWT access token
+            access_token = create_access_token(identity=str(user_id))
+            return {"token": access_token}, 200
+        
+        return {"message": "Invalid email or password"}, 401
+    
 # Login by ralvie cloud
-@api.route("/0/ralvie/login")
+@api.route("/0/ralvie/login", doc=False)
 class RalvieLoginResource(Resource):
     def post(self):
         """
@@ -386,10 +354,8 @@ class RalvieLoginResource(Resource):
 
          @return A JSON with the result of the authentication and user
         """
-        #cache_key = "Sundial"
         refresh_token = ""
         # Check Internet Connectivity
-        response_data = {}
         # If the internet is not connected return a 200 error message.
         if not is_internet_connected():
             return jsonify({"message": "Please connect to the internet and try again."}), 200
@@ -399,7 +365,6 @@ class RalvieLoginResource(Resource):
         user_name = data.get('userName')
         password = data.get('password')
         companyId = data.get('companyId', None)
-        print(user_name, password, companyId)
         user_id = None
 
         # JSON response with user_name password user_name user_name password
@@ -412,17 +377,14 @@ class RalvieLoginResource(Resource):
         reset_user()
 
         # Authenticate User
-        auth_result = current_app.api.authorize(data)
+        auth_result = current_app.api.authorize(data)        
 
         # Returns a JSON response with the user credentials.
         if auth_result.status_code == 200 and json.loads(auth_result.text)["code"] == 'UASI0011':
+            
+            logger.debug(f"companyId => {json.loads(auth_result.text)}")
+            
             # Retrieve Cached User Credentials
-            cached_credentials = credentials()
-            token = json.loads(auth_result.text)["data"]["access_token"]
-            # Get the User Key
-            user_key = cached_credentials.get(
-                "encrypted_db_key") if cached_credentials else None
-
             token = json.loads(auth_result.text)["data"]["access_token"]
             refresh_token = json.loads(auth_result.text)[
                 "data"]["refresh_token"]
@@ -434,8 +396,11 @@ class RalvieLoginResource(Resource):
             # Reset the user to the default user
             if not init_db:
                 reset_user()
-                return {"message": "Something went wrong"}, 500
+                return {"message": "Can not create the database."}, 500
 
+            user, message = current_app.api.create_user(user_name, password)
+            if user is None:
+                logger.info(f"message => {message}")
             # Generate JWT
             user_credentials = credentials()
             payload = {
@@ -444,27 +409,22 @@ class RalvieLoginResource(Resource):
                 "phone": user_credentials.get("phone"),
             }
             encoded_jwt = jwt.encode(payload, user_credentials.get("user_key"),
-                                     algorithm="HS256")
+                                     algorithm="HS256")       
 
-            # Response
-            response_data['code'] = "UASI0011",
-            response_data["message"] = json.loads(auth_result.text)["message"],
-            response_data['companyId'] = companyId,
-            response_data["data"]: {"token": "Bearer " + encoded_jwt}
             return {"code": "UASI0011", "message": json.loads(auth_result.text)["message"], "companyId": companyId,
                     "data": {"token": "Bearer " + encoded_jwt, "access_token": "Bearer " + token, "refresh_token": refresh_token}, "userId": user_id}, 200
-        else:
+        else:            
             return {"code": json.loads(auth_result.text)["code"], "message": json.loads(auth_result.text)["message"],
                     "data": json.loads(auth_result.text)["data"], "userId": user_id}, 200
-
+        
 
 # BUCKETS
-
-@api.route("/0/buckets/<string:bucket_id>/formated_events")
+@api.route("/0/buckets/<string:bucket_id>/formated_events", doc=False)
 class EventsResource(Resource):
     # For some reason this doesn't work with the JSONSchema variant
     # Marshalling doesn't work with JSONSchema events
     # @api.marshal_list_with(event)
+    @login_required
     @api.doc(model=event)
     @api.param("limit", "the maximum number of requests to get")
     @api.param("start", "Start date of events")
@@ -489,6 +449,7 @@ class EventsResource(Resource):
         return events, 200
 
     # TODO: How to tell expect that it could be a list of events? Until then we can't use validate.
+    @login_required
     @api.expect(event)
     @copy_doc(ServerAPI.create_events)
     def post(self, bucket_id):
@@ -520,6 +481,8 @@ class EventsResource(Resource):
 @api.route("/0/buckets/")
 class BucketsResource(Resource):
     # TODO: Add response marshalling/validation
+    @api.doc(model=bucket, security="Bearer")
+    @jwt_required()
     @copy_doc(ServerAPI.get_buckets)
     def get(self) -> Dict[str, Dict]:
         """
@@ -531,8 +494,9 @@ class BucketsResource(Resource):
         return current_app.api.get_buckets()
 
 
-@api.route("/0/buckets/<string:bucket_id>")
+@api.route("/0/buckets/<string:bucket_id>",  doc=False)
 class BucketResource(Resource):
+    @login_required
     @api.doc(model=bucket)
     @copy_doc(ServerAPI.get_bucket_metadata)
     def get(self, bucket_id):
@@ -545,6 +509,7 @@ class BucketResource(Resource):
         """
         return current_app.api.get_bucket_metadata(bucket_id)
 
+    @login_required
     @api.expect(create_bucket)
     @copy_doc(ServerAPI.create_bucket)
     def post(self, bucket_id):
@@ -568,6 +533,7 @@ class BucketResource(Resource):
         else:
             return {}, 304
 
+    @login_required
     @api.expect(update_bucket)
     @copy_doc(ServerAPI.update_bucket)
     def put(self, bucket_id):
@@ -588,6 +554,7 @@ class BucketResource(Resource):
         )
         return {}, 200
 
+    @login_required
     @copy_doc(ServerAPI.delete_bucket)
     @api.param("force", "Needs to be =1 to delete a bucket it non-testing mode")
     def delete(self, bucket_id):
@@ -613,11 +580,12 @@ class BucketResource(Resource):
 # EVENTS
 
 
-@api.route("/0/buckets/<string:bucket_id>/events")
+@api.route("/0/buckets/<string:bucket_id>/events",  doc=False)
 class EventsResource(Resource):
     # For some reason this doesn't work with the JSONSchema variant
     # Marshalling doesn't work with JSONSchema events
     # @api.marshal_list_with(event)
+    @login_required
     @api.doc(model=event)
     @api.param("limit", "the maximum number of requests to get")
     @api.param("start", "Start date of events")
@@ -642,6 +610,7 @@ class EventsResource(Resource):
         return events, 200
 
     # TODO: How to tell expect that it could be a list of events? Until then we can't use validate.
+    @login_required
     @api.expect(event)
     @copy_doc(ServerAPI.create_events)
     def post(self, bucket_id):
@@ -677,6 +646,8 @@ class EventCountResource(Resource):
     @api.param("start", "Start date of eventcount")
     @api.param("end", "End date of eventcount")
     @copy_doc(ServerAPI.get_eventcount)
+    @api.doc(security="Bearer")
+    @jwt_required()
     def get(self, bucket_id):
         args = request.args
         start = iso8601.parse_date(args["start"]) if "start" in args else None
@@ -687,8 +658,9 @@ class EventCountResource(Resource):
         return events, 200
 
 
-@api.route("/0/buckets/<string:bucket_id>/events/<int:event_id>")
+@api.route("/0/buckets/<string:bucket_id>/events/<int:event_id>",  doc=False)
 class EventResource(Resource):
+    @login_required
     @api.doc(model=event)
     @copy_doc(ServerAPI.get_event)
     def get(self, bucket_id: str, event_id: int):
@@ -710,6 +682,7 @@ class EventResource(Resource):
         else:
             return None, 404
 
+    @login_required
     @copy_doc(ServerAPI.delete_event)
     def delete(self, bucket_id: str, event_id: int):
         """
@@ -736,12 +709,13 @@ def time_in_range(start, end, x):
         return start <= x or x <= end
 
 
-@api.route("/0/buckets/<string:bucket_id>/heartbeat")
+@api.route("/0/buckets/<string:bucket_id>/heartbeat",  doc=False)
 class HeartbeatResource(Resource):
     def __init__(self, *args, **kwargs):
         self.lock = Lock()
         super().__init__(*args, **kwargs)
 
+    @login_required
     @api.expect(event, validate=True)
     @api.param("pulsetime", "Largest time window allowed between heartbeats for them to merge")
     @copy_doc(ServerAPI.heartbeat)
@@ -825,7 +799,7 @@ class HeartbeatResource(Resource):
 # QUERY
 
 
-@api.route("/0/query/")
+@api.route("/0/query/", doc=False)
 class QueryResource(Resource):
     # TODO Docs
     @api.expect(query, validate=True)
@@ -897,6 +871,8 @@ def blocked_list():
 @api.route("/0/buckets/<string:bucket_id>/export")
 class BucketExportResource(Resource):
     @api.doc(model=buckets_export)
+    @api.doc(security="Bearer")
+    @jwt_required()
     @copy_doc(ServerAPI.export_bucket)
     def get(self, bucket_id):
         bucket_export = current_app.api.export_bucket(bucket_id)
@@ -909,7 +885,7 @@ class BucketExportResource(Resource):
         return response
 
 
-@api.route("/0/user_details")
+@api.route("/0/user_details", doc=False)
 class UserDetails(Resource):
     @copy_doc(ServerAPI.get_user_details)
     def get(self):
@@ -923,7 +899,7 @@ class UserDetails(Resource):
         return user_details
 
 
-@api.route("/0/import")
+@api.route("/0/import", doc=False)
 class ImportAllResource(Resource):
     @api.expect(buckets_export)
     @copy_doc(ServerAPI.import_all)
@@ -951,8 +927,9 @@ class ImportAllResource(Resource):
 
 
 # LOGGING
-@api.route("/0/settings")
+@api.route("/0/settings",  doc=False)
 class SaveSettings(Resource):
+    @login_required
     @copy_doc(ServerAPI.save_settings)
     @api.doc(security="Bearer")
     def post(self):
@@ -992,7 +969,7 @@ class SaveSettings(Resource):
             return {"message": "No settings provided"}, 400
 
 
-@api.route("/0/getsettings/")
+@api.route("/0/getsettings/", doc=False)
 class retrieveSettings(Resource):
     @copy_doc(ServerAPI.get_settings)
     @api.doc(security="Bearer")
@@ -1014,8 +991,9 @@ class retrieveSettings(Resource):
             return {"message": f"No settings found with code '{code}'"}, 404
 
 
-@api.route("/0/settings/<string:code>")
+@api.route("/0/settings/<string:code>",  doc=False)
 class DeleteSettings(Resource):
+    @login_required
     @copy_doc(ServerAPI.delete_settings)
     @api.doc(security="Bearer")
     def delete(self, code):
@@ -1034,10 +1012,11 @@ class DeleteSettings(Resource):
             return {"message": f"No settings found with code '{code}'"}, 404
 
 
-@api.route("/0/getallsettings")
+@api.route("/0/getallsettings", doc=False)
 class GetAllSettings(Resource):
+    @login_required
     @copy_doc(ServerAPI.retrieve_all_settings)
-    @api.doc(security="Bearer")
+    #@api.doc(security="Bearer")
     def get(self):
         """
         Get settings. This is a GET request to /0/getsettings/{code}.
@@ -1054,7 +1033,7 @@ class GetAllSettings(Resource):
         return settings_dict
 
 
-@api.route("/0/getschedule")
+@api.route("/0/getschedule", doc=False)
 class GetSchedule(Resource):
     @copy_doc(ServerAPI.retrieve_all_settings)
     @api.doc(security="Bearer")
@@ -1070,7 +1049,7 @@ class GetSchedule(Resource):
         return json.loads(settings_dict["weekdays_schedule"]), 200
 
 
-@api.route("/0/applicationsdetails")
+@api.route("/0/applicationsdetails", doc=False)
 class SaveApplicationDetails(Resource):
     @api.doc(security="Bearer")
     @copy_doc(ServerAPI.save_application_details)
@@ -1122,7 +1101,7 @@ class SaveApplicationDetails(Resource):
             return {"message": "No application details provided"}, 400
 
 
-@api.route("/0/getapplicationdetails")
+@api.route("/0/getapplicationdetails", doc=False)
 class getapplicationdetails(Resource):
     @copy_doc(ServerAPI.get_appication_details)
     @api.doc(security="Bearer")
@@ -1133,7 +1112,7 @@ class getapplicationdetails(Resource):
         return current_app.api.get_appication_details()
 
 
-@api.route("/0/deleteapplication/<int:application_id>")
+@api.route("/0/deleteapplication/<int:application_id>", doc=False)
 class DeleteApplicationDetails(Resource):
     @copy_doc(ServerAPI.delete_application_details)
     @api.doc(security="Bearer")
@@ -1157,7 +1136,7 @@ class DeleteApplicationDetails(Resource):
             return {"message": "Error deleting application details"}, 500
 
 
-@api.route("/0/log")
+@api.route("/0/log", doc=False)
 class LogResource(Resource):
     @copy_doc(ServerAPI.get_log)
     def get(self):
@@ -1170,7 +1149,7 @@ class LogResource(Resource):
         return current_app.api.get_log(), 200
 
 
-@api.route('/0/start/')
+@api.route('/0/start/', doc=False)
 class StartModule(Resource):
     @api.doc(security="Bearer")
     @api.doc(params={"module": "Module Name", })
@@ -1186,7 +1165,7 @@ class StartModule(Resource):
         return jsonify({"message": message})
 
 
-@api.route('/0/stop/')
+@api.route('/0/stop/', doc=False)
 class StopModule(Resource):
     @api.doc(security="Bearer")
     @api.doc(params={"module": "Module Name", })
@@ -1202,7 +1181,7 @@ class StopModule(Resource):
         return jsonify({"message": message})
 
 
-@api.route('/0/status')
+@api.route('/0/status', doc=False)
 class Status(Resource):
     @api.doc(security="Bearer")
     def get(self):
@@ -1217,7 +1196,7 @@ class Status(Resource):
         return jsonify(modules)
 
 
-@api.route('/0/idletime')
+@api.route('/0/idletime', doc=False)
 class Idletime(Resource):
     @api.doc(security="Bearer")
     def get(self):
@@ -1268,7 +1247,7 @@ class Idletime(Resource):
 
 
 
-@api.route('/0/credentials')
+@api.route('/0/credentials', doc=False)
 class User(Resource):
 
     def get(self):
@@ -1290,8 +1269,11 @@ class User(Resource):
                  "email": cached_credentials.get("email")})
 
 
-@api.route("/0/dashboard/events")
+@api.route("/0/dashboard/events", doc=False)
 class DashboardResource(Resource):
+    @login_required
+    @api.doc(security="Bearer")
+    # @jwt_required()
     def get(self):
         """
         Get dashboard events. GET /api/dashboards/[id]?start=YYYYMMDD&end=YYYYMMDD
@@ -1321,6 +1303,26 @@ class DashboardResource(Resource):
 
 @api.route("/0/dashboard/most_used_apps")
 class MostUsedAppsResource(Resource):
+    # @api.param("end", "End date")
+    # @api.param("start", "Start date")  
+    @api.doc(
+        params={
+            "start": {
+                "description": "Start date",
+                "type": "string",
+                "format": "date",
+                "example": "2026-08-01",
+            },
+            "end": {
+                "description": "End date",
+                "type": "string",
+                "format": "date",
+                "example": "2026-08-20",
+            },
+        }
+    )  
+    @api.doc(security="Bearer")
+    @jwt_required()   
     def get(self):
         """
          Get most used apps. This will return a list of apps that have been used in the last 24 hours.
@@ -1350,13 +1352,16 @@ class MostUsedAppsResource(Resource):
 @api.route("/0/applicationlist")
 class ApplicationListResource(Resource):
     @copy_doc(ServerAPI.application_list)
+    @api.doc(security="Bearer")
+    @jwt_required()
     def get(self):
         applications = current_app.api.application_list()
         return applications, 200
 
 
-@api.route("/0/sync_server")
+@api.route("/0/sync_server",  doc=False)
 class SyncServer(Resource):
+    @login_required
     def get(self):
         try:
             status = current_app.api.sync_events_to_ralvie()
@@ -1378,7 +1383,7 @@ class SyncServer(Resource):
             return {"message": "Internal server error"}, 500
 
 
-@api.route("/0/launchOnStart")
+@api.route("/0/launchOnStart", doc=False)
 class LaunchOnStart(Resource):
     @api.doc(security="Bearer")
     def get(self):
@@ -1420,8 +1425,9 @@ class LaunchOnStart(Resource):
 # Refresh token
 
 
-@api.route("/0/ralvie/refresh_token")
+@api.route("/0/ralvie/refresh_token",  doc=False)
 class RalvieTokenRefreshResource(Resource):
+    @login_required
     def put(self):
         """
          Refresh token. This is the endpoint for refreshing the access token.
@@ -1450,7 +1456,7 @@ class RalvieTokenRefreshResource(Resource):
                     "data": json.loads(auth_result.text)["data"]}, 200
 
 
-@api.route("/0/user/profile")
+@api.route("/0/user/profile", doc=False)
 class UpdateUserProfile(Resource):
 
     def put(self):
@@ -1463,7 +1469,7 @@ class UpdateUserProfile(Resource):
         return current_app.api.update_user_profile(access_token, file)
 
 
-@api.route("/0/user/<string:token>")
+@api.route("/0/user/<string:token>", doc=False)
 class UserDetailsById(Resource):
     @copy_doc(ServerAPI.get_user_by_id)
     def get(self, token):
@@ -1476,7 +1482,7 @@ class UserDetailsById(Resource):
         return current_app.api.get_user_by_id(token)
 
 
-@api.route("/0/user/profile_photo/<string:token>")
+@api.route("/0/user/profile_photo/<string:token>", doc=False)
 class DeleteUserProfilePhoto(Resource):
     @copy_doc(ServerAPI.delete_user_profile_photo)
     def delete(self, token):
@@ -1489,7 +1495,7 @@ class DeleteUserProfilePhoto(Resource):
         return current_app.api.delete_user_profile_photo(token)
 
 
-@api.route("/0/init_db")
+@api.route("/0/init_db", doc=False)
 class initdb(Resource):
     def get(self):
         init_db = current_app.api.init_db()

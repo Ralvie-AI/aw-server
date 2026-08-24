@@ -22,6 +22,8 @@ from .api import ServerAPI
 from .custom_static import get_custom_static_blueprint
 from .log import FlaskLogHandler
 from playhouse.shortcuts import model_to_dict
+import secrets
+from flask_jwt_extended import JWTManager
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,38 @@ class AWFlask(Flask):
             static_folder=static_folder,
             static_url_path=static_url_path,
         )
+        # --- JWT CONFIGURATION ---
+        
+        self.config["JWT_SECRET_KEY"] = secrets.token_hex(32)
+        self.config["JWT_HEADER_TYPE"] = ""
+
+        self.jwt = JWTManager(self)
+
+        @self.jwt.invalid_token_loader
+        def invalid_token_callback(reason):
+            return {
+                "error": "invalid_token",
+                "message": reason,
+            }, 401
+
+
+        @self.jwt.unauthorized_loader
+        def missing_token_callback(reason):
+            return {
+                "error": "authorization_required",
+                "message": reason,
+            }, 401
+
+        @self.jwt.expired_token_loader
+        def expired_token_callback(jwt_header, jwt_payload):
+            return {
+                "error": "token_expired",
+                "message": "The access token has expired.",
+            }, 401
+        
+        # -------------------------
+        self.config['RESTX_INCLUDE_ALL_MODELS'] = True
+
         self.config["HOST"] = host  # needed for host-header check
         with self.app_context():
             _config_cors(cors_origins, testing)

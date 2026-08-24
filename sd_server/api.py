@@ -1518,6 +1518,16 @@ class ServerAPI:
             return json.loads(events_json)
         else: return None
 
+
+    def create_user(self, email, password):
+        return self.db.create_user(email, password)
+
+    def check_email(self, email):
+        return self.db.check_email(email)
+
+    def check_password(self, email, password):
+        return self.db.check_password(email, password)
+    
 def datetime_serializer(obj):
     """
      Serialize datetime to ISO format. This is used to ensure that dates are converted to ISO format before saving to the database.
