@@ -1671,7 +1671,7 @@ class ScreenShotQueue(threading.Thread):
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
                                 file_location = get_running_path()
-                                sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity/sd-ocr-activity.exe")   
+                                sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity.exe")   
                                 command_list = [             
                                         sd_ocr_activity_exe,                          
                                         "--server_url", server_url,
@@ -1679,24 +1679,6 @@ class ScreenShotQueue(threading.Thread):
                                         "--screenshot_id", str(record.id),                                        
                                     ]
                                 start_exe(command_list, timeout_sec=50)
-                                # ocr_result = self.orc.run_ocr(img_path=screenshot_file)
-                                # logger.info(f'result => {ocr_result}')
-                                # logger.info(f'result type=> {type(ocr_result)}')
-                                # self.server.db.update_ocr_text(record.id, ocr_result)
-                                # time.sleep(OCR_SLEEP_TIME)
-
-                                # screenshot = self.server.db.get_screenshot_by_id(record.id)
-
-                                # if LOGGING_VERBOSE == 1:                                    
-                                #     logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text => {screenshot.ocr_text}")
-
-                                # logger.info(f"after sleep {OCR_SLEEP_TIME} screenshot.ocr_text length => {len(screenshot.ocr_text)}")
-
-                                # if screenshot.ocr_text is None:
-                                #     break
-
-                                # record = screenshot
-
                                 break
 
                             if LOGGING_VERBOSE == 1:
