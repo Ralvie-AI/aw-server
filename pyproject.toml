@@ -27,6 +27,7 @@ psutil = ">=4.0"
 charset-normalizer = "3.4.7"
 requests = "2.34.2"
 flask-jwt-extended = "4.7.4"
+keyrings-alt = "^5.0.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.0"
