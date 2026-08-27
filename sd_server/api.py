@@ -36,7 +36,9 @@ from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string, convert_to_local_datetime_string
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION, PUBLIC_KEY, STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME, STAGING
+from sd_server.const import (PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, 
+                             REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION, PUBLIC_KEY, 
+                             STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME, STAGING)
 from sd_server.ocr_active import ActiveWindowOCRText
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 from sd_main.sd_desktop.util import (credentials)
@@ -252,7 +254,7 @@ class ServerAPI:
         # Update the headers with the params.
         if params:
             headers.update(params)
-        return req.get(self._url(endpoint), headers=self._build_headers(additional_headers=headers))
+        return req.get(self._url(endpoint), headers=self._build_headers(additional_headers=headers), )
 
     @always_raise_for_request_errors
     def _post(
@@ -379,7 +381,7 @@ class ServerAPI:
         logger.info(f"_delete => {self._build_headers(additional_headers=headers)}")
         return req.delete(self._url(endpoint), 
                           data=json.dumps(data), 
-                          headers=self._build_headers(additional_headers=headers))
+                          headers=self._build_headers(additional_headers=headers),)
 
     def init_db(self) -> bool:
         """
@@ -1801,7 +1803,7 @@ class ScreenShotQueue(threading.Thread):
             try:
                 url = HOST_TO_UPLOAD_SHOT_GET.format(protocol=PROTOCOL, host=HOST, user_id=userId, company_id=companyId )
                 # logger.info(f"url => {url}")
-                res = requests.get(url, headers=headers)
+                res = requests.get(url, headers=headers,)
                 data = res.json()                
                 logger.debug(f"result get_pre_signed_url => {data}")
                 if data.get('code') == REJECTED_SYNC_STATUS:
@@ -1820,7 +1822,7 @@ class ScreenShotQueue(threading.Thread):
     def update_object_key_file(self, url_path):
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                res = requests.put(url_path)
+                res = requests.put(url_path,)
                 data = res.json()
                 print("data", data)
                 logging.info(f"Upload failed with status code: {data.get('code')}")

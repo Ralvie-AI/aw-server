@@ -8,6 +8,11 @@ from . import __version__
 from .config import config
 from .server import _start
 
+from sd_core.const import TLS_DIR, CERT_FILE, KEY_FILE, TLS_EXE
+import os
+import subprocess
+import ssl
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,6 +21,12 @@ def main():
      Entry point for sd - server. This is the main function called by the executable and __main__. py
     """
     """Called from the executable and __main__.py"""
+
+    if not os.path.exists(TLS_DIR) or os.path.exists(CERT_FILE) or os.path.exists(KEY_FILE):
+        try:
+            subprocess.run([TLS_EXE], timeout=30)  # Waits at most 30 seconds
+        except subprocess.TimeoutExpired:
+            logger.exception("The program took too long and was interrupted.")
 
     settings, storage_method = parse_settings()
 
@@ -44,14 +55,34 @@ def main():
         logger.info(f"Using custom_static: {settings.custom_static}")
 
     logger.info("Starting up...")
-    _start(
-        host=settings.host,
-        port=settings.port,
-        testing=settings.testing,
-        storage_method=storage_method,
-        cors_origins=settings.cors_origins,
-        custom_static=settings.custom_static,
-    )
+
+    try:
+        _start(
+            host=settings.host,
+            port=settings.port,
+            testing=settings.testing,
+            storage_method=storage_method,
+            cors_origins=settings.cors_origins,
+            custom_static=settings.custom_static,
+        )
+    except (ssl.SSLError, Exception) as e:
+        # broken certs and recreate clean ones automatically
+        CERT_FILE.unlink(missing_ok=True)
+        KEY_FILE.unlink(missing_ok=True)
+        
+        try:
+            subprocess.run([TLS_EXE], timeout=30)  # Waits at most 30 seconds
+        except subprocess.TimeoutExpired:
+            logger.exception("The program took too long and was interrupted.")
+
+            _start(
+                host=str(settings.host),
+                port=7600,
+                testing=False,
+                storage_method=storage_method,
+                cors_origins=settings.cors_origins,
+                custom_static=settings.custom_static,
+            )
 
 
 def parse_settings():

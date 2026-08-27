@@ -25,12 +25,65 @@ from playhouse.shortcuts import model_to_dict
 import secrets
 from flask_jwt_extended import JWTManager
 
+from pathlib import Path
+import ssl
+import tempfile
+from sd_core.const import CERT_FILE, KEY_FILE, TLS_SERVICE_NAME, CERT_FILE_SWIFT
+from .tls import decrypt, generate
+from sd_core.cache import get_password, keychain_item_exists
+import subprocess
+
 logger = logging.getLogger(__name__)
 
 app_folder = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(app_folder, "static")
 
 root = Blueprint("root", __name__, url_prefix="/")
+
+def create_ssl_context(
+    cert_file: Path,
+    encrypted_key_file: Path,
+) -> ssl.SSLContext:
+
+    logger.info('create ssl context')
+
+    try:
+        if all([keychain_item_exists(TLS_SERVICE_NAME), cert_file.exists(), encrypted_key_file.exists(), CERT_FILE_SWIFT.exists()]):
+            private_key_pem = decrypt(
+                encrypted_key_file.read_bytes(),
+                bytes.fromhex(get_password(TLS_SERVICE_NAME))
+            )
+        else:
+            private_key_pem = generate()
+
+    except Exception as e:
+        logger.exception(e)
+
+    # Create temporary file
+    fd, temp_path_str = tempfile.mkstemp(suffix=".key")
+    temp_path = Path(temp_path_str)
+
+    try:
+        with os.fdopen(fd, "wb") as temp_key:
+            temp_key.write(private_key_pem)
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(
+            certfile=str(cert_file),
+            keyfile=str(temp_path),
+        )
+
+        return context
+    finally:
+        # Overwrite file with zeroes before unlinking
+        if temp_path.exists():
+            try:
+                with open(temp_path, "wb") as f:
+                    f.write(b"\x00" * len(private_key_pem))
+                temp_path.unlink()
+            except OSError:
+                pass
+
 
 class AWFlask(Flask):
     def __init__(
@@ -230,6 +283,15 @@ def _start(
      @param cors_origins - List of origins to allow cross - origin requests
      @param custom_static - Dict of custom static variables to pass to
     """
+    try:
+        ssl_context = create_ssl_context(
+                    CERT_FILE,
+                    KEY_FILE,
+                )
+        print("TLS certificate + private key: PASS")
+    except Exception as e:
+        print(f"TLS certificate + private key: FAIL: {e}")   
+
     app = AWFlask(
         host,
         testing=testing,
@@ -246,6 +308,7 @@ def _start(
             request_handler=FlaskLogHandler,
             use_reloader=False,
             threaded=True,
+            ssl_context=ssl_context,
         )
     except OSError as e:
         logger.exception(e)
