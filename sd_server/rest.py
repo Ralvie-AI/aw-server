@@ -830,58 +830,6 @@ class GetSchedule(Resource):
         return json.loads(settings_dict["weekdays_schedule"]), 200
 
 
-@api.route("/0/applicationsdetails")
-class SaveApplicationDetails(Resource):
-    @api.doc(security="Bearer")
-    @copy_doc(ServerAPI.save_application_details)
-    def post(self):
-        """
-        Save application details to the database. This is a POST request to /api/v0/applications.
-
-        @return: 200 if successful, 400 if there is an error.
-        """
-        # Parse JSON data sent in the request body
-        data = request.get_json()
-        if data:
-            # Extract necessary fields from the parsed JSON
-            name = data.get('name')
-            url = data.get('url')
-            type = data.get('type')
-            alias = data.get('alias')
-            is_blocked = data.get('is_blocked', False)
-            is_ignore_idle_time = data.get('is_ignore_idle_time', False)
-            color = data.get('color')
-
-            # Check if the essential field 'name' is present
-            # Construct a dictionary with application details
-            application_details = {
-                "name": name,
-                "url": url,
-                "type": type,
-                "alias": alias,
-                "is_blocked": is_blocked,
-                "is_ignore_idle_time": is_ignore_idle_time,
-                "color": color
-            }
-
-            # Remove None values to avoid overwriting with None in the database
-            application_details = {
-                k: v for k, v in application_details.items() if v is not None}
-
-            # Save application details to the database
-            # Assuming current_app.api.save_application_details() is your method to save application details
-            result = current_app.api.save_application_details(
-                application_details)
-            if result is not None:
-                return {"message": "Application details saved successfully",
-                        "result": result.json()}, 200  # Use .json() method to serialize the result
-            else:
-                return {"message": "Error saving application details"}, 500
-        else:
-            # Handle the case where no JSON is provided
-            return {"message": "No application details provided"}, 400
-
-
 @api.route("/0/getapplicationdetails")
 class getapplicationdetails(Resource):
     @copy_doc(ServerAPI.get_appication_details)

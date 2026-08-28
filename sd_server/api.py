@@ -203,14 +203,6 @@ class ServerAPI:
     def delete_settings(self,code):
         return self.db.delete_settings(code=code)
 
-    def save_application_details(self, application_details):
-        try:
-            # Save application details to the database
-            saved_details = self.db.save_application_details(application_details)
-            return saved_details
-        except Exception:
-            # Handle the error
-            return None
     def get_appication_details(self):
         return self.db.retrieve_application_details()
 
