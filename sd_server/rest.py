@@ -165,115 +165,6 @@ class InfoResource(Resource):
         return current_app.api.get_info()
 
 
-# Users
-
-
-@api.route("/0/user")
-class UserResource(Resource):
-    @api.doc(security="Bearer")
-    def post(self):
-        """
-         Create a Sundial user. This is a POST request to the / v1 / users endpoint.
-
-
-         @return a dictionary containing the user's details and a boolean indicating if the user was
-        """
-        cached_credentials = credentials()
-        # If internet connection is not connected to internet and try again.
-        if not is_internet_connected():
-            print("Please connect to internet and try again.")
-        data = request.get_json()
-        # Returns a 400 if the user is not a valid email or password
-        if not data['email']:
-            return {"message": "User name is mandatory"}, 400
-        elif not data['password']:
-            return {"message": "Password is mandatory"}, 400
-        # Returns the user who is currently using the cached credentials.
-        if cached_credentials is not None:
-            user = cached_credentials.get("encrypted_db_key")
-        else:
-            user = None
-        # Create a user and authorize it
-        if True:
-            result = current_app.api.create_user(data)
-            # This method is used to authorize and create a company.
-            if result.status_code == 200 and json.loads(result.text)["code"] == 'UASI0001':
-                userPayload = {
-                    "userName": data['email'],
-                    "password": data['password']
-                }
-                authResult = current_app.api.authorize(userPayload)
-
-                # Returns the auth result as JSON
-                if 'company' not in data:
-                    return json.loads(authResult.text), 200
-
-                # This method is used to create a company and create a company
-                if authResult.status_code == 200 and json.loads(authResult.text)["code"] == 'RCI0000':
-                    token = json.loads(authResult.text)["data"]["access_token"]
-                    id = json.loads(authResult.text)["data"]["id"]
-                    companyPayload = {
-                        "name": data['company'],
-                        "code": data['company'],
-                        "status": "ACTIVE"
-                    }
-
-                    companyResult = current_app.api.create_company(
-                        companyPayload, 'Bearer ' + token)
-
-                    # This method is called when the user is created
-                    if companyResult.status_code == 200 and json.loads(companyResult.text)["code"] == 'UASI0006':
-                        current_app.api.get_user_credentials(
-                            id, 'Bearer ' + token)
-                        init_db = current_app.api.init_db()
-                        # This function is called when the user is created
-                        if init_db:
-                            return {"message": "Account created successfully"}, 200
-                        else:
-                            reset_user()
-                            return {"message": "Something went wrong"}, 500
-                    else:
-                        return json.loads(companyResult.text), 200
-                else:
-                    return json.loads(authResult.text), 200
-            else:
-                return json.loads(result.text), 200
-        else:
-            return {"message": "User already exist"}, 200
-
-
-@api.route("/0/company")
-class CompanyResource(Resource):
-    def post(self):
-        """
-         Create a company in UASI. This will be used for creating company in UASI.
-
-
-         @return tuple of ( response status_code ) where response is empty if success or a dict with error
-        """
-        data = request.get_json()
-        token = request.headers.get("Authorization")
-        # If token is not set return 401
-        if not token:
-            return {"message": "Token is required"}, 401
-        # Error message if name is not set
-        if not data['name']:
-            return {"message": "Company name is mandatory"}, 400
-        companyPayload = {
-            "name": data['name'],
-            "code": data['code'],
-            "status": "ACTIVE"
-        }
-
-        companyResult = current_app.api.create_company(companyPayload, token)
-
-        # Returns the status code of the company result.
-        if companyResult.status_code == 200 and json.loads(companyResult.text)["code"] == 'UASI0006':
-            return json.loads(companyResult.text), 200
-        else:
-            return json.loads(companyResult.text), companyResult.status_code
-
-
 # Login by ralvie cloud
 @api.route("/0/ralvie/login")
 class RalvieLoginResource(Resource):
@@ -295,7 +186,6 @@ class RalvieLoginResource(Resource):
         user_name = data.get('userName')
         password = data.get('password')
         companyId = data.get('companyId', None)
-        print(user_name, password, companyId)
         user_id = None
 
         # JSON response with user_name password user_name user_name password

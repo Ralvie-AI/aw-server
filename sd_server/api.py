@@ -405,17 +405,6 @@ class ServerAPI:
         """
         return self.db.init_db()
 
-    def create_user(self, user:Dict[str, Any]):
-        """
-         Create a user on behalf of the authenticated user. This is a POST request to the ` ` / web / user ` ` endpoint.
-
-         @param user - A dictionary containing the information to create the user on behalf of.
-
-         @return The response from the server that was received as part of the request
-        """
-        endpoint = f"/web/user"
-        return self._post(endpoint , user)
-
     def authorize(self, user:Dict[str, Any]):
         """
          Authorize a user. This is a POST request to the ` / web / user / authorize ` endpoint.
@@ -437,39 +426,6 @@ class ServerAPI:
         """
         endpoint = f"/web/user/authorize/refresh_token"
         return self._put(endpoint , payload)
-
-
-    def update_user_profile(self, access_token, file):
-        cached_credentials = get_credentials(CACHE_KEY)
-        user_id = cached_credentials.get("userId")
-        if user_id:
-            endpoint = f"/web/user/{user_id}/profile"
-            response = self._put_with_file(endpoint, file, {"Authorization" : access_token})
-
-        if response.status_code == 200:
-            return {"code": json.loads(response.text)["code"], "message": json.loads(response.text)["message"],
-                    "data": json.loads(response.text)["data"]}, 200
-        return {"status": "error", "message": "Failed"}
-
-    def create_company(self, user:Dict[str, Any], token):
-        """
-         Create a company for the user. This is a POST request to the ` / web / company ` endpoint.
-
-         @param user - Dictionary containing the user's data. See example below.
-         @param token - Authorization token to use for this request. See example below.
-
-         @return A response from the server that contains the company ID
-        """
-        endpoint = f"/web/company"
-        return self._post(endpoint , user, {"Authorization" : token})
-
-    def sync_appdata_to_ralvie(self, data: Dict[str, Any],token) -> Any:
-        """
-        Sync application data to Ralvie.
-        """
-        endpoint = "/web/open/application"
-        return self._post(endpoint, data,{"Authorization" : token})
-        # return self._post(endpoint, data,{"Authorization" : token})
 
     def sync_events_to_ralvie(self):
 
