@@ -8,7 +8,7 @@ from . import __version__
 from .config import config
 from .server import _start
 
-from sd_core.const import TLS_DIR, CERT_FILE, KEY_FILE, TLS_EXE
+from sd_core.const import TLS_DIR, CERT_FILE, KEY_FILE, TLS_EXE, STAGING
 import os
 import subprocess
 import ssl
@@ -56,7 +56,60 @@ def main():
 
     logger.info("Starting up...")
 
-    try:
+    if STAGING == 0: #production
+        from sd_main.sd_desktop.monitor import get_running_process_id
+
+        process_running = get_running_process_id("sd-main")
+
+        if not process_running:
+            print("=" * 100)
+            print("\n" * 5)
+            print("Caught you! Sundial App must be run first.;-)".center(100, " "))
+            print("\n" * 5)
+            print("=" * 100)
+
+            sys.exit(0)
+
+        if settings.testing == True or settings.port != 7600:
+            print("=" * 100)
+            print("\n" * 5)
+            print("Caught you! Those parameters are reserved for testing.;-)".center(100, " "))
+            print("\n" * 5)
+            print("=" * 100)
+
+            sys.exit(0)
+        else:            
+            try:                
+                _start(
+                    host=str(settings.host),
+                    port=7600,
+                    testing=False,
+                    storage_method=storage_method,
+                    cors_origins=settings.cors_origins,
+                    custom_static=settings.custom_static,
+                )
+            except (ssl.SSLError, Exception) as e:
+                # broken certs and recreate clean ones automatically
+                CERT_FILE.unlink(missing_ok=True)
+                KEY_FILE.unlink(missing_ok=True)
+
+                
+                try:
+                    subprocess.run([TLS_EXE], timeout=30)  # Waits at most 30 seconds
+                except subprocess.TimeoutExpired:
+                    logger.exception("The program took too long and was interrupted.")
+
+                _start(
+                        host=str(settings.host),
+                        port=7600,
+                        testing=False,
+                        storage_method=storage_method,
+                        cors_origins=settings.cors_origins,
+                        custom_static=settings.custom_static,
+                    )
+                
+
+    elif STAGING == 1: #Staging
         _start(
             host=settings.host,
             port=settings.port,
@@ -65,25 +118,9 @@ def main():
             cors_origins=settings.cors_origins,
             custom_static=settings.custom_static,
         )
-    except (ssl.SSLError, Exception) as e:
-        # broken certs and recreate clean ones automatically
-        CERT_FILE.unlink(missing_ok=True)
-        KEY_FILE.unlink(missing_ok=True)
-        
-        try:
-            subprocess.run([TLS_EXE], timeout=30)  # Waits at most 30 seconds
-        except subprocess.TimeoutExpired:
-            logger.exception("The program took too long and was interrupted.")
-
-            _start(
-                host=str(settings.host),
-                port=7600,
-                testing=False,
-                storage_method=storage_method,
-                cors_origins=settings.cors_origins,
-                custom_static=settings.custom_static,
-            )
-
+    else:
+        print("Bye Bye")
+        sys.exit(0)
 
 def parse_settings():
     """
