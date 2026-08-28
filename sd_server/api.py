@@ -729,62 +729,6 @@ class ServerAPI:
 
         return user_credentials
 
-    def get_user_by_id(self, token):
-        """
-        Get credentials for a user. This is a wrapper around the get_credentials endpoint to provide access to the user '
-
-        @param userId
-        @param token
-        """
-        cached_credentials = get_credentials(CACHE_KEY)
-        user_id = cached_credentials.get("userId")
-
-        endpoint = f"/web/user/{user_id}"
-        user = self._get(endpoint, {"Authorization": token})
-
-        # This function is used to retrieve the user credentials.
-        if user.status_code == 200:
-            return json.loads(user.text)
-        else:
-            return None
-
-    def delete_user_profile_photo(self, token):
-        """
-        Delete profile photo of a user.'
-
-        @param userId
-        @param token
-        """
-        cached_credentials = get_credentials(CACHE_KEY)
-        user_id = cached_credentials.get("userId")
-
-        endpoint = f"/web/user/{user_id}/profile"
-        user = self._delete(endpoint, {}, {"Authorization": token})
-
-        return json.loads(user.text)
-
-    def get_user_details(self):
-        """
-         Get details of user. This is used to populate the Sundial page in the admin.
-
-
-         @return Dictionary that contains email phone firstname and lastname
-        """
-        cached_credentials = get_credentials(CACHE_KEY)
-
-        image = self.db.retrieve_setting("profilePic")
-        response_data = {"email": cached_credentials.get("email"), "phone": cached_credentials.get("phone"),
-                         "firstname": cached_credentials.get("firstname"),
-                         "lastname": cached_credentials.get("lastname")}
-        # Set the image s profile image
-        if image:
-            response_data['ProfileImage'] = image
-        else:
-            response_data['ProfileImage'] = ""
-        # Return cached credentials if cached credentials are not None.
-        if not cached_credentials is None:
-            return response_data
-
 
     def get_info(self) -> Dict[str, Any]:
         """
