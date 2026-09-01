@@ -462,9 +462,7 @@ class ServerAPI:
                     
                 for data in events:                    
                     data["clientTimeZone"] = local_zone
-                    data["sundial_version"] = RELEASE_VERSION
-                    if data.get("application_name") == "Visual Studio Code":
-                        data["application_name"] = "Code"
+                    data["sundial_version"] = RELEASE_VERSION                    
     
                 payload = {"userId": userId, "companyId": companyId, "events": events, "timeout": 60}
 
@@ -570,9 +568,7 @@ class ServerAPI:
         dt = datetime.strptime(file_date_time, "%Y-%m-%dT%H-%M-%S.%fZ")
         return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    def is_empty(self, record):
-        if record.event.app == "Visual Studio Code":
-            return "Code"
+    def is_empty(self, record):        
         return record.event.app
 
     def get_local_capture_at(self, local_time_zone, record):
