@@ -47,8 +47,7 @@ from sd_core.const import (
     LOGGING_VERBOSE, 
     SYNC_TIME, 
     SCREEN_SHOT_SYNC_TIME,
-    HOST_TO_UPLOAD_SHOT_GET, 
-    OCR_SLEEP_TIME,
+    HOST_TO_UPLOAD_SHOT_GET,
     )
 from sd_core.version import RELEASE_VERSION
 from sd_core.system_uuid import get_uuid_address
