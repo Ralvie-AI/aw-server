@@ -491,6 +491,7 @@ class ServerAPI:
                             threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                             threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
                             threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
+                            threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine-event.exe",)).start()
                             time.sleep(5)
 
                         if response_data.get('data').get('events'):
@@ -1082,7 +1083,6 @@ class ServerAPI:
                 last_event = last_events[0]
         else:
             last_event = self.last_event[bucket_id]
-
         # This function is called by the heartbeat_merge function.
         if last_event:
             # Heartbeat data is the same as heartbeat. data.
@@ -1137,6 +1137,25 @@ class ServerAPI:
 
         heartbeat = self.db[bucket_id].insert(heartbeat)
         self.last_event[bucket_id] = heartbeat
+
+        if last_event and last_event.get("id") != heartbeat.get("id"):
+            td = last_event.get('duration')
+            total_seconds = td.total_seconds()
+            if total_seconds >= 30:
+                if DEVELOPMENT_MODE != 0:
+                    logger.info("run ocr")
+                    creds = credentials()
+                    user_id = creds.get('userId')
+                    sd_pixel_engine_event_exe = os.path.join(get_running_path(), "sd-ocr-event.exe")
+                    command_list = [
+                                    sd_pixel_engine_event_exe,                 
+                                    "--event_id", str(last_event.get("id")),
+                                    "--user_id", user_id,
+                                    "--image_path", "",
+                                    ]
+                    logger.info(f"command_list => {command_list}")
+                    start_exe(command_list)
+
         return heartbeat
 
     def query2(self, name, query, timeperiods, cache):
@@ -1553,12 +1572,18 @@ class ScreenShotQueue(threading.Thread):
                                 except Exception as e:
                                     logger.info(f"Error: {e}")                            
                             
-                            if record.is_ocr_text_enabled and  not record.ocr_text:
+                            if record.is_ocr_text_enabled and  not record.ocr_text and record.is_event_screenshot:
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
                                 file_location = get_running_path()
-                                sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity.exe")   
+                                if DEVELOPMENT_MODE == 1:
+                                    sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity.exe")
+                                else:
+                                    tmp_path = file_location.split("sd-core")[0]
+                                    tmp_path_location = r"sd-ocr-activity\dist\sd-ocr-activity"
+                                    sd_ocr_activity_exe = os.path.join(tmp_path, tmp_path_location, "sd-ocr-activity.exe")
+
                                 command_list = [             
                                         sd_ocr_activity_exe,                          
                                         "--server_url", server_url,
@@ -1582,6 +1607,7 @@ class ScreenShotQueue(threading.Thread):
                                     threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                                     threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
                                     threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
+                                    threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine-event.exe",)).start()
                                     
                                 logger.info("Events were rejected by the server. It looks like a session conflict caused by a concurrent login on a different machine.")
 
