@@ -21,7 +21,8 @@ from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm, validate_
 
 ALLOWED_PROCESSES = {
     "sd-pixel-engine.exe",
-    "sd-ocr-activity.exe"
+    "sd-ocr-activity.exe",
+    "sd-ocr-event.exe",
 }
 
 
@@ -205,3 +206,38 @@ def update_ocr_text():
     return jsonify({        
         'message': 'JSON processed successfully',        
     }), 200
+
+
+@blueprint.route('/event/screenshots', methods=['POST'])
+def create_event_screenshot():
+
+    if not is_request_from_allowed_process():
+        abort(403, description="Forbidden: Request must originate from sd-ocr-event.exe")
+
+    json_data = request.get_json()  # Expects Content-Type: application/json
+    logger.info(f"json_data => {json_data}")
+    if not json_data:
+        return jsonify({'error': 'No JSON payload provided'}), 400
+    
+    event_id = json_data.get('event_id')
+    is_ocr_text_enabled = json_data.get('is_ocr_text_enabled')
+    is_event_screenshot = json_data.get('is_event_screenshot')
+    file_location = json_data.get('file_location')
+    created_at = json_data.get('created_at') 
+
+    data = {
+    "event_id": event_id,
+    "file_path": file_location,
+    'created_at': datetime.fromisoformat(created_at),
+    'is_ocr_text_enabled': is_ocr_text_enabled,
+    'is_event_screenshot': is_event_screenshot,
+    }
+            
+    screenshot_id = current_app.api.db.save_event_screenshot(data)
+
+    return jsonify({
+        'result': file_location,
+        'message': 'JSON processed successfully',
+        'received_data': json_data,
+        'screenshot_id': screenshot_id
+    }), 201
