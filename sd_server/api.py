@@ -149,6 +149,7 @@ class ServerAPI:
         self.db = db
         self.testing = testing
         self.last_event = {}  # Stores the last event for each bucket to optimize event updates.
+        self.last_merge = {}
 
         # Configure server address.
         self.server_address = f"{PROTOCOL}://{REMOTE_HOST}"
@@ -1048,11 +1049,31 @@ class ServerAPI:
         Inspired by: https://wakatime.com/developers#heartbeats
         """
 
+        def run_event_ocr(event_id):
+            if DEVELOPMENT_MODE != 0:
+                logger.info("run ocr")
+                creds = credentials()
+                user_id = creds.get('userId')
+                sd_pixel_engine_event_exe = os.path.join(get_running_path(), "sd-ocr-event.exe")
+                command_list = [
+                                sd_pixel_engine_event_exe,                 
+                                "--event_id", str(event_id),
+                                "--user_id", user_id,
+                                "--image_path", "",
+                                ]
+                logger.info(f"command_list => {command_list}")
+                start_exe(command_list)
+
+
+        logger.info(f"first heart beat => {heartbeat}")
         if heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] == "afk":
+            logger.info(f"store_credentials is_afk True => {heartbeat}")
             store_credentials("is_afk", True)
         elif heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] != "afk":
+            logger.info(f"store_credentials is_afk False => {heartbeat}")
             store_credentials("is_afk", False)
         if heartbeat["data"]["app"] and heartbeat["data"]["app"] != "afk"and get_credentials("is_afk"):
+            logger.info(f"get_credentials => {heartbeat}")
             return heartbeat
 
         logger.debug(
@@ -1097,17 +1118,32 @@ class ServerAPI:
                         )
                     )
 
-
+                    logger.info(f"merged => {merged}")
                     result = self.db[bucket_id].replace_last(merged)
-                    # logger.info(f"result type => {result}")
+
+                    logger.info(f"result replace_last type => {result}")
                     if result != 1:
-                        # logger.info(f"replace_last result = {result}")
+                        if not self.last_merge:
+                            self.last_merge['merge'] = merged
+                        else:
+                            if self.last_merge['merge'].get('id') != merged.get('id'):
+
+                                td =  self.last_merge['merge'].get('duration')
+                                total_seconds = td.total_seconds()
+                                if total_seconds >= 30 and self.last_merge['merge'].get('status') != "not-afk":
+                                    logger.info(f"merged return before => {self.last_merge['merge']}")
+                                    run_event_ocr(self.last_merge['merge'].get("id"))
+                                self.last_merge['merge'] = merged
+                                logger.info(f"merged return after => {self.last_merge['merge']}")
+
                         self.last_event[bucket_id] = merged
+                        logger.info(f"result not equal 1 => {self.last_event[bucket_id]}")                        
                         return merged
                     else:
                         heartbeat.id = None
                         heartbeat.duration = 0
                         heartbeat = self.db[bucket_id].insert(heartbeat)
+                        logger.info(f"heartbeat insert 1 => {heartbeat}")
                         if not heartbeat:
                             logger.warning("Failed to insert heartbeat")
                         else:
@@ -1136,25 +1172,28 @@ class ServerAPI:
             )
 
         heartbeat = self.db[bucket_id].insert(heartbeat)
+        logger.info(f"heartbeat insert 2 => {heartbeat}")
         self.last_event[bucket_id] = heartbeat
+
+        logger.info(f"last event after => {last_event}")
+        logger.info(f"heartbeat after => {heartbeat}")
+        logger.info(f"heartbeat afte self.last_event[bucket_id]r => {self.last_event[bucket_id]}")
+        if last_event:
+            logger.info(f"last_event.get('duration') => {last_event.get('duration')} => {type(last_event.get('duration'))}")
 
         if last_event and last_event.get("id") != heartbeat.get("id"):
             td = last_event.get('duration')
             total_seconds = td.total_seconds()
             if total_seconds >= 30:
-                if DEVELOPMENT_MODE != 0:
-                    logger.info("run ocr")
-                    creds = credentials()
-                    user_id = creds.get('userId')
-                    sd_pixel_engine_event_exe = os.path.join(get_running_path(), "sd-ocr-event.exe")
-                    command_list = [
-                                    sd_pixel_engine_event_exe,                 
-                                    "--event_id", str(last_event.get("id")),
-                                    "--user_id", user_id,
-                                    "--image_path", "",
-                                    ]
-                    logger.info(f"command_list => {command_list}")
-                    start_exe(command_list)
+                latest_event_id = self.db.get_latest_event_id_screenshot()
+                logger.info(f"latest_event_id => {latest_event_id} => type => {type(latest_event_id)}")                
+
+                if latest_event_id is None:
+                    logger.info(f"latest_event_id none => {latest_event_id} => type => {type(latest_event_id)}")
+                    run_event_ocr(last_event.get("id"))
+                elif last_event.get("id") > latest_event_id:
+                    logger.info("last_event is greater than latest event_id")
+                    run_event_ocr(last_event.get("id"))                    
 
         return heartbeat
 
