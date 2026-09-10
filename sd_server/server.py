@@ -17,7 +17,7 @@ from flask import (
 )
 from flask_cors import CORS
 
-from . import rest, screen_shot
+from . import ocr_event_extraction, rest, screen_shot
 from .api import ServerAPI
 from .custom_static import get_custom_static_blueprint
 from .log import FlaskLogHandler
@@ -80,6 +80,7 @@ class AWFlask(Flask):
         self.register_blueprint(root)
         self.register_blueprint(rest.blueprint)
         self.register_blueprint(screen_shot.blueprint)
+        self.register_blueprint(ocr_event_extraction.blueprint)
 
 class CustomJSONProvider(flask.json.provider.DefaultJSONProvider):
     # encoding/decoding of datetime as iso8601 strings
