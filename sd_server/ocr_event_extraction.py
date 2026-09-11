@@ -33,7 +33,7 @@ def ocr_event():
         "s_event": 1
     }
 
-    current_app.api.db.save_secondlast_event_over30sec(data)
+    current_app.api.db.save_screenshot(data)
 
     return jsonify({
         'result': json.dumps(data),
