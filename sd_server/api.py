@@ -48,6 +48,8 @@ from .__about__ import __version__
 from .exceptions import NotFound
 
 from sd_core.const import HOST_TO_UPLOAD_SHOT_GET, MAX_RETRIES, DELAY_SECONDS
+from sd_main.sd_desktop.monitor import start_exe_with_command
+import subprocess
 
 os.environ.pop('HTTP_PROXY', None)
 os.environ.pop('HTTPS_PROXY', None)
@@ -515,6 +517,10 @@ class ServerAPI:
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
+
+                        #delete ocr event
+                        self.db.delete_ocr_event(list_of_ids=event_ids)
+
                         return {"status": f"Successfully synced total events => {len(event_ids)}" }
                     
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
@@ -546,6 +552,10 @@ class ServerAPI:
                             if success_event_ids:
                                 logger.info(f"success_event_ids 2 {success_event_ids}")
                                 self.db.update_server_sync_status(list_of_ids=success_event_ids, new_status=1)
+
+                                #delete ocr event
+                                self.db.delete_ocr_event(list_of_ids=success_event_ids)
+
                                 time.sleep(5)
 
                         else:
@@ -1286,7 +1296,6 @@ class ServerAPI:
 
         Inspired by: https://wakatime.com/developers#heartbeats
         """
-
         if heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] == "afk":
             store_credentials("is_afk", True)
         elif heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] != "afk":
@@ -1325,11 +1334,16 @@ class ServerAPI:
 
         # This function is called by the heartbeat_merge function.
         if last_event:
+            logger.debug(f'1. last_event: [{last_event.id}] - [{last_event.data}]')
+            logger.debug(f'1. heartbeat: [{heartbeat.data}], timestamp: {heartbeat.timestamp}')
+
             # Heartbeat data is the same as heartbeat. data.
             if last_event.data == heartbeat.data:
+                logger.debug(f'2. last_event.data == heartbeat.data')
                 merged = heartbeat_merge(last_event, heartbeat, pulsetime)
                 # If heartbeat is valid or after pulse window insert new event.
                 if merged is not None:
+                    logger.debug(f'3. merged is not NONE')
                     # Heartbeat was merged into last_event
                     # logger.debug(
                     #     "Received valid heartbeat, merging. (bucket: {}) (app: {})".format(
@@ -1351,9 +1365,12 @@ class ServerAPI:
                     # logger.info(f"result type => {result}")
                     if result != 1:
                         # logger.info(f"replace_last result = {result}")
+                        logger.info(f"4. replace_last result //return merged//")
                         self.last_event[bucket_id] = merged
+                        logger.debug(f'===================================')
                         return merged
                     else:
+                        logger.info(f"4. replace_last result //return heartbeat//")
                         heartbeat.id = None
                         heartbeat.duration = 0
                         heartbeat = self.db[bucket_id].insert(heartbeat)
@@ -1363,9 +1380,11 @@ class ServerAPI:
                             logger.debug(f"Inserted heartbeat with ID {heartbeat.id}")
                         logger.info(f"heartbeat return data {heartbeat}")
                         self.last_event[bucket_id] = heartbeat
+                        logger.debug(f'===================================')
                         return heartbeat
 
                 else:
+                    logger.debug('3. [inserting as new event] merged is NONE //PASS//')
                     # logger.debug(
                     #     "Received heartbeat after pulse window, inserting as new event. (bucket: {}) (app: {})".format(
                     #         bucket_id, heartbeat["data"]["app"]
@@ -1373,12 +1392,17 @@ class ServerAPI:
                     # )
                     pass
             else:
+                logger.debug('2. [inserting as new event] last_event.data != heartbeat.data //PASS//')
                 # logger.debug(
                 #     "Received heartbeat with differing data, inserting as new event. (bucket: {}) (app: {})".format(
                 #             bucket_id, heartbeat["data"]["app"]
                 #         )
                 # )
                 pass
+
+            if last_event.app != "afk":
+                logger.debug(f"[{last_event.id} - {last_event.app}] doing ocr // {heartbeat.timestamp}")
+                self._ocr_save_image(last_event, heartbeat.timestamp)
         else:
             logger.info(
                 "Received heartbeat, but bucket was previously empty, inserting as new event. (bucket: {})".format(
@@ -1386,9 +1410,60 @@ class ServerAPI:
                 )
             )
 
+        logger.debug(f"**** heartbeat ****")
         heartbeat = self.db[bucket_id].insert(heartbeat)
         self.last_event[bucket_id] = heartbeat
+        logger.debug(f'[NOW] event id => {heartbeat.id}')
+        logger.debug(f'===================================')
+
         return heartbeat
+
+    def _ocr_save_image(self, event: Event, event_time: datetime):
+
+        logger.debug(f'[OCR NOW] event id => [{event.id} - {event.app}: "{event.title}"] duration: {event.duration.seconds}')
+        is_already_in_queue = self.db.get_ocr_event_by_event_ID(int(event.id))
+
+        if is_already_in_queue:
+            logger.debug(f'[{event.id} - {event.app}] This Event id Already IN QUEUE')
+            return
+
+        if event.duration.seconds < 30:
+            logger.debug(f'[{event.id} - {event.app}] Time duration < 30')
+            return
+        
+
+        logger.debug(f'[{event.id} - {event.app}] is over than 30 sec {event.duration.seconds}')
+
+        # event id
+        event_id = event.id
+
+        #time for time range
+        event_start_time = event.timestamp
+        event_end_time = event_time
+
+        logger.debug(f'event_start_time => {event_start_time}')
+        logger.debug(f'event_end_time => {event_end_time}')
+            
+        cached_credentials = get_credentials(CACHE_KEY)
+        user_id = cached_credentials.get("userId")
+
+        from sd_ocr_event.utils import get_image
+
+        screenshot_path, screenshot_time = get_image(event_start_time, event_end_time, user_id, event_id)
+
+        if screenshot_path is None:
+            logger.debug('image not found')
+            return
+            
+        payload = {
+            'event_id': event_id,
+            'screenshot_path': screenshot_path,
+            'screenshot_time': screenshot_time if isinstance(screenshot_time, str) else screenshot_time.strftime("%Y-%m-%d %H:%M:%S.%f%z"),
+        }
+            
+        response = requests.post("http://localhost:7600/ocr_event/", json=payload)
+        response.raise_for_status()
+
 
     def query2(self, name, query, timeperiods, cache):
         """
@@ -1451,11 +1526,34 @@ class ServerAPI:
     def get_lastest_event(self):
         return self.db.get_lastest_event()
 
+    # def get_non_sync_events(self) -> List[Event]:
+    #     events = self.db.get_non_sync_events()
+    #     if not events:
+    #         logger.info("No unsynced events found.")
+    #         return {"status": "NoEvents", "events": []}
+    #     try:
+    #         event_start = parser.isoparse(events[0]["timestamp"])
+    #         events_json = json.dumps({
+    #             "events": events,
+    #             "start_hour": event_start.hour,
+    #             "start_min": event_start.minute,
+    #             "start_date_time": event_start,
+    #         }, default=datetime_serializer)
+    #         return json.loads(events_json)
+    #     except Exception as e:
+    #         logger.error(f"Error parsing events: {e}")
+    #         return {"status": "error", "message": str(e)}
+
     def get_non_sync_events(self) -> List[Event]:
         events = self.db.get_non_sync_events()
         if not events:
             logger.info("No unsynced events found.")
             return {"status": "NoEvents", "events": []}
+        #for doing ocr
+        self._ocr_event_extraction()
+        #for mapping event and screenshot event's ocr
+        self._mapping_event_ocr(events)
+        #logger.debug(f"event_matched => {events}")  
         try:
             event_start = parser.isoparse(events[0]["timestamp"])
             events_json = json.dumps({
@@ -1469,6 +1567,119 @@ class ServerAPI:
             logger.error(f"Error parsing events: {e}")
             return {"status": "error", "message": str(e)}
 
+    def _ocr_event_extraction(self):
+
+        # get total ocr event
+        ocr_waiting_to_sync = self.db.get_screenshot_record_count(1)
+
+        # get all screenshot record [ocr event]
+        ocr_record = self.db.get_screenshot_record(1)
+
+        # check if have no ocr event
+        if ocr_waiting_to_sync == 0:
+            return
+
+        # get event id AND image path in screenshot record at LIST
+        event_id_list = []
+        for record in ocr_record:
+            if (record.ocr_text is None)and (Path(record.file_path).exists()):
+                event_id_list.append(str(record.event_id))
+            else: #if file path is missing
+                record.delete_instance()
+        image_path_list = [record.file_path for record in ocr_record if (record.ocr_text is None) and (Path(record.file_path).exists())]
+
+        logger.debug(event_id_list)
+        logger.debug(image_path_list)
+
+        if event_id_list:
+
+            # check if sd-ocr-event is running
+            pid = get_running_process_id('sd-ocr-event')
+
+            # if sd-ocr-event is running just close it
+            if pid:
+                stop_process(pid)
+
+            # cmd 
+            command_list = [
+                "/Applications/Sundial.app/Contents/MacOS/sd-ocr-event",
+                "--server_url", "",
+                "--event_id", *event_id_list,
+                "--image_path", *image_path_list,
+            ]
+
+            logger.debug(command_list)
+            #start_exe_with_command('sd-ocr-event', command_list)
+            subprocess.run(command_list, check=True) # need to finish doing ocr before go next
+
+            for image in image_path_list:
+                os.remove(image)
+
+    def _mapping_event_ocr(self, events: List[Event]) -> list[Event]:
+
+        #get total rows in screenshotmodel where is_event_screenshot = 1
+        ocr_waiting_to_sync = self.db.get_screenshot_record_count(1)
+
+        #get all rows in screenshotmodel where is_event_screenshot = 1
+        ocr_extraction = self.db.get_screenshot_record(1)
+
+        #append all event id 
+        event_ids = [record.event_id for record in ocr_extraction]
+        matched_event = []
+
+        #if have no row in screenshotmodel
+        if ocr_waiting_to_sync == 0:
+            # This means OCR cannot be performed, so 'ocrText' will be None.
+            # 'ocrStatus' must be False because if it is True, sd-pixel-engine-event should already be running.
+                # When a new event arrives, the previous event must be checked immediately.
+                    # If the event duration >= 30 seconds, the screenshot[shot by sd-pixel-engine-event] will be matched
+                    # then appended to ScreenshotModel.
+            for event in events:
+                event['ocrText'] = None
+                event['ocrStatus'] = False
+
+                matched_event.append(event)
+
+            return 
+
+        for record in ocr_extraction:
+
+            ocr_data = []
+
+            if record.is_ocr_text_enabled:
+                try:
+                    ocr_text_json = json.loads(record.ocr_text)
+                    
+                    for data in ocr_text_json.get("data", []):
+                        text = data.get("text", "")
+                        
+                        if len(text) == 1:
+                            continue
+                        
+                        ocr_data.append(data)
+
+                except Exception as e:
+                    logger.error(f"OCR JSON parse failed: {e}")
+                    ocr_data = []
+
+            for event in events:
+
+                if event['id'] in event_ids:
+
+                    if event['id'] == record.event_id:
+                        event['ocrText'] = ocr_data
+                        event['ocrStatus'] = True
+                        record.sync_status = 1
+                        record.save()
+
+                else:
+                    event['ocrText'] = None
+                    event['ocrStatus'] = True
+
+                matched_event.append(event)
+
+        return
+    
     def get_most_used_apps(
         self,
         start: Optional[datetime] = None,
@@ -1886,7 +2097,7 @@ class ScreenShotQueue(threading.Thread):
                     # logger.info("Connected to internet. Attempting to sync screenshot.")
                     response_code = None
                     try:
-                        for record in self.server.db.get_screenshot_record():
+                        for record in self.server.db.get_screenshot_record(0):
                             # logger.info(f"[DEBUG] Found record: {record.file_path}")
                             # check if record.file_path file type is png
                             # it means there was no public key file found for encrypting the json file
@@ -1939,24 +2150,26 @@ class ScreenShotQueue(threading.Thread):
                                 #     logger.warning(f"[WAIT] Screenshot not ready: {active_file}")
                                 #     continue  
 
-                                monitor = ResourceMonitor()
-                                monitor.start()
-                                try:
-                                    ocr_result = self.ocr.run_ocr(img_path=active_file)
-                                    logger.debug(f'ocr result => {ocr_result}')
-                                finally:
-                                    usage = monitor.stop()
-                                if STAGING == 1:
-                                    setup_logging("sd-ocr-activity", log_file=True)
-                                    metrics_summary = (
-                                        f"\n--- Resource Usage ---"
-                                        f"\nRuntime       : {usage.elapsed_seconds:.2f} s"
-                                        f"\nPeak CPU      : {usage.peak_cpu_percent:.1f}%"
-                                        f"\nPeak memory   : {usage.peak_memory_mb:.1f} MB"
-                                        f"\n----------------------"
-                                        f"\n"
-                                    )
-                                    logger.info(metrics_summary)
+                                ocr_result = self.ocr.run_ocr(img_path=active_file)
+                                logger.debug(f'ocr result => {ocr_result}')
+                                # monitor = ResourceMonitor()
+                                # monitor.start()
+                                # try:
+                                #     ocr_result = self.ocr.run_ocr(img_path=active_file)
+                                #     logger.debug(f'ocr result => {ocr_result}')
+                                # finally:
+                                #     usage = monitor.stop()
+                                # if STAGING == 1:
+                                #     setup_logging("sd-ocr-activity", log_file=True)
+                                #     metrics_summary = (
+                                #         f"\n--- Resource Usage ---"
+                                #         f"\nRuntime       : {usage.elapsed_seconds:.2f} s"
+                                #         f"\nPeak CPU      : {usage.peak_cpu_percent:.1f}%"
+                                #         f"\nPeak memory   : {usage.peak_memory_mb:.1f} MB"
+                                #         f"\n----------------------"
+                                #         f"\n"
+                                #     )
+                                #     logger.info(metrics_summary)
 
                                 if not isinstance(ocr_result, str):
                                     ocr_result = json.dumps(ocr_result)
@@ -2021,7 +2234,7 @@ class ScreenShotQueue(threading.Thread):
                             threading.Thread(target=stop_process, args=(screenshot_pid,)).start()
                             logger.info("Events were rejected by the server. It looks like a session conflict caused by a concurrent login on a different machine.")
 
-                            for record in self.server.db.get_screenshot_record():
+                            for record in self.server.db.get_screenshot_record(0):
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}.png"
                                 if os.path.exists(screenshot_file):
