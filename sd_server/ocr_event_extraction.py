@@ -30,7 +30,7 @@ def ocr_event():
         "event_id": event_id,
         "file_path": screenshot_path,
         "created_at": screenshot_time,
-        "s_event": 1
+        "is_event_screenshot": 1
     }
 
     current_app.api.db.save_screenshot(data)
