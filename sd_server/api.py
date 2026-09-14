@@ -1449,7 +1449,7 @@ class ServerAPI:
 
         from sd_ocr_event.utils import get_image
 
-        screenshot_path, screenshot_time = get_image(event_start_time, event_end_time, user_id, event_id)
+        screenshot_path, screenshot_time = get_image(event_start_time, event_end_time, user_id)
 
         if screenshot_path is None:
             logger.debug('image not found')
