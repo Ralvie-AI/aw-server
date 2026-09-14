@@ -439,7 +439,7 @@ class ServerAPI:
             data = self.get_non_sync_events()
             if data.get("status") == "NoEvents":
                 return {"status": "NoEvents"}
-
+            
             events = data.get("events", [])
             if events:
 
@@ -1066,15 +1066,15 @@ class ServerAPI:
 
 
         logger.info(f"first heart beat => {heartbeat}")
-        if heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] == "afk":
-            logger.info(f"store_credentials is_afk True => {heartbeat}")
-            store_credentials("is_afk", True)
-        elif heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] != "afk":
-            logger.info(f"store_credentials is_afk False => {heartbeat}")
-            store_credentials("is_afk", False)
-        if heartbeat["data"]["app"] and heartbeat["data"]["app"] != "afk"and get_credentials("is_afk"):
-            logger.info(f"get_credentials => {heartbeat}")
-            return heartbeat
+        # if heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] == "afk":
+        #     logger.info(f"store_credentials is_afk True => {heartbeat}")
+        #     store_credentials("is_afk", True)
+        # elif heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] != "afk":
+        #     logger.info(f"store_credentials is_afk False => {heartbeat}")
+        #     store_credentials("is_afk", False)
+        # if heartbeat["data"]["app"] and heartbeat["data"]["app"] != "afk"and get_credentials("is_afk"):
+        #     logger.info(f"get_credentials => {heartbeat}")
+        #     return heartbeat
 
         logger.debug(
             "Received heartbeat in bucket '{}'\n\ttimestamp: {}, duration: {}, pulsetime: {}\n\tdata: {}".format(
@@ -1130,12 +1130,23 @@ class ServerAPI:
 
                                 td =  self.last_merge['merge'].get('duration')
                                 total_seconds = td.total_seconds()
-                                if total_seconds >= 30 and self.last_merge['merge'].get('status') != "not-afk":
-                                    logger.info(f"merged return before => {self.last_merge['merge']}")
-                                    run_event_ocr(self.last_merge['merge'].get("id"))
-                                self.last_merge['merge'] = merged
-                                logger.info(f"merged return after => {self.last_merge['merge']}")
+                                if total_seconds >= 30 and self.last_merge['merge'].get('data').get('status') == "not-afk":
+                                    logger.info(f"merged return before not-afk => {self.last_merge['merge']}")
+                                    self.last_merge['merge'] = merged
+                                elif total_seconds >= 30:
+                                    latest_event_id = self.db.get_latest_event_id_screenshot()
+                                    logger.info(f"latest_event_id => {latest_event_id} => type => {type(latest_event_id)}")                
+                    
+                                    if latest_event_id is None:
+                                        logger.info(f"latest_event_id none => {latest_event_id} => type => {type(latest_event_id)}")
+                                        run_event_ocr(self.last_merge['merge'].get("id"))
+                                    elif self.last_merge['merge'].get("id") > latest_event_id:
+                                        logger.info("last_event is greater than latest self.last_merge['merge'].get('id')")
+                                        run_event_ocr(self.last_merge['merge'].get("id"))
 
+                                    logger.info(f"merged return before => {self.last_merge['merge']}")
+                                    self.last_merge['merge'] = merged
+                                
                         self.last_event[bucket_id] = merged
                         logger.info(f"result not equal 1 => {self.last_event[bucket_id]}")                        
                         return merged
