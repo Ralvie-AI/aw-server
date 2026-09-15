@@ -1365,7 +1365,7 @@ class ServerAPI:
                     # logger.info(f"result type => {result}")
                     if result != 1:
                         # logger.info(f"replace_last result = {result}")
-                        logger.info(f"4. replace_last result //return merged//")
+                        logger.debug(f"4. replace_last result //return merged//")
                         self.last_event[bucket_id] = merged
                         logger.debug(f'===================================')
                         return merged
@@ -1449,7 +1449,7 @@ class ServerAPI:
 
         from sd_ocr_event.utils import get_image
 
-        screenshot_path, screenshot_time = get_image(event_start_time, event_end_time, user_id)
+        screenshot_path, screenshot_time = get_image(event_start_time, event_end_time, user_id, event_id)
 
         if screenshot_path is None:
             logger.debug('image not found')
