@@ -1400,9 +1400,18 @@ class ServerAPI:
                 # )
                 pass
 
-            if last_event.app != "afk":
+
+
+            if last_event.app == 'afk':
+                if last_event.data['status'] == 'afk':
+                    logger.debug(f"AFK: [{last_event.id} - {last_event.app}] doing ocr // {heartbeat.timestamp}")
+                    self._ocr_save_image(last_event, heartbeat.timestamp)
+                else:
+                    logger.debug(f"SKIP [event id:{last_event.id} - status: {last_event.data['status']}]")
+            else:
                 logger.debug(f"[{last_event.id} - {last_event.app}] doing ocr // {heartbeat.timestamp}")
-                self._ocr_save_image(last_event, heartbeat.timestamp)
+                self._ocr_save_image(last_event, heartbeat.timestamp)                
+
         else:
             logger.info(
                 "Received heartbeat, but bucket was previously empty, inserting as new event. (bucket: {})".format(
@@ -1420,7 +1429,7 @@ class ServerAPI:
 
     def _ocr_save_image(self, event: Event, event_time: datetime):
 
-        logger.debug(f'[OCR NOW] event id => [{event.id} - {event.app}: "{event.title}"] duration: {event.duration.seconds}')
+        logger.debug(f'[ocr save image] event id => [{event.id} - {event.app}: "{event.title}"] duration: {event.duration.seconds}')
         is_already_in_queue = self.db.get_ocr_event_by_event_ID(int(event.id))
 
         if is_already_in_queue:
@@ -1460,7 +1469,8 @@ class ServerAPI:
             'screenshot_path': screenshot_path,
             'screenshot_time': screenshot_time if isinstance(screenshot_time, str) else screenshot_time.strftime("%Y-%m-%d %H:%M:%S.%f%z"),
         }
-            
+
+        logger.debug(f'ocr save image payload: {payload}')
         response = requests.post("http://localhost:7600/ocr_event/", json=payload)
         response.raise_for_status()
 
@@ -1626,6 +1636,8 @@ class ServerAPI:
 
         #append all event id 
         event_ids = [record.event_id for record in ocr_extraction]
+        event_sync_id = [event["event_id"] for event in events]
+
         matched_event = []
 
         #if have no row in screenshotmodel
@@ -1643,7 +1655,7 @@ class ServerAPI:
 
             return 
 
-        logger.debug(f'need to sync {event_ids}')
+        logger.debug(f'need to sync {event_sync_id}')
 
         for record in ocr_extraction:
 
@@ -1651,7 +1663,7 @@ class ServerAPI:
 
             if record.is_ocr_text_enabled:
 
-                if record.event_id in event_ids:
+                if record.event_id in event_sync_id:
                     try:
                         ocr_text_json = json.loads(record.ocr_text)
                         
@@ -1667,7 +1679,7 @@ class ServerAPI:
                         logger.error(f"OCR JSON parse failed: {e}")
                         ocr_data = []
                 else:
-                    logger.debug(f'{record.event_id} is not in list to sync this time')
+                    logger.debug(f'event id "{record.event_id}" is not in list to sync this time')
 
             for event in events:
 
