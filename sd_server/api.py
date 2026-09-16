@@ -6,6 +6,7 @@ import time
 import re
 from datetime import datetime, timedelta, timezone
 import uuid
+import subprocess
 from pathlib import Path
 from socket import gethostname
 import threading
@@ -39,6 +40,7 @@ from sd_core.util import (
     get_running_path, 
     start_exe, 
     convert_datetime_string,
+    run_event_ocr_exe,
     )
 from sd_core.const import (
     CACHE_KEY, 
@@ -419,6 +421,20 @@ class ServerAPI:
         endpoint = f"/web/user/authorize/refresh_token"
         return self._put(endpoint , payload)
 
+
+    def extract_ocr_text(self, ocr_event_text):                        
+        ocr_data = []
+        logger.info(f"ocr_event_text => {ocr_event_text}")
+        logger.info(f"ocr_event_text => {type(ocr_event_text)}")
+        if ocr_event_text:                
+            ocr_text_json = json.loads(ocr_event_text)
+            for data in ocr_text_json.get('data'):
+                if len(data.get('text')) == 1:
+                    continue 
+                ocr_data.append(data)
+        logger.info(f"ocr_data => {ocr_data}")
+        return ocr_data  
+
     def sync_events_to_ralvie(self):
 
         try:      
@@ -460,26 +476,55 @@ class ServerAPI:
 
                 if LOGGING_VERBOSE == 1:
                     logger.info(f"before events => {events}")
-                    
-                for data in events:                    
-                    data["clientTimeZone"] = local_zone
-                    data["sundial_version"] = RELEASE_VERSION                    
-    
-                payload = {"userId": userId, "companyId": companyId, "events": events, "timeout": 60}
-
-                if LOGGING_VERBOSE == 1:
-                    logger.info(f"events payload => {payload}")
-
-                endpoint = "/web/event"
-                response = self._post(endpoint, payload, {"Authorization": token})
                 
                 event_ids = [obj['event_id'] for obj in events]
+                ocr_event_results = self.db.get_event_ocr_text(event_ids)
+                logger.info(f"length ocr_event_results ocr_event_results => {ocr_event_results}")
+                logger.info(f"length ocr_event_results ocr_event_results => {len(ocr_event_results)}")
+
+                if len(ocr_event_results) == 0:
+                    for ocr_event in events:
+                        logger.info(f"events => {ocr_event}")
+                        run_event_ocr_exe(ocr_event.get("event_id"), 
+                                          ocr_event.get("timestamp"), 
+                                          ocr_event.get("duration"),
+                                          userId)
+          
+                ocr_event_dict = {}
+                event_screenshot_ids = []
+                for ocr_event_result in ocr_event_results:
+                    ocr_event_dict[ocr_event_result.event_id] = self.extract_ocr_text(ocr_event_result.ocr_text)
+                    event_screenshot_ids.append(ocr_event_result.id)
+
+                if len(ocr_event_results) > 0:
+                    for data in events:
+                        data["ocrStatus"] = True
+                        data["ocrText"] = ocr_event_dict.get(data.get("id"))
+                        data["clientTimeZone"] = local_zone
+                        data["sundial_version"] = RELEASE_VERSION  
+                else:                        
+                    for data in events:
+                        data["ocrStatus"] = False
+                        data["ocrText"] = []
+                        data["clientTimeZone"] = local_zone
+                        data["sundial_version"] = RELEASE_VERSION       
+
+                logger.info(f"events events => {events}")
+                payload = {"userId": userId, "companyId": companyId, "events": events, "timeout": 60}
+                logger.info(f"events payload => {payload}")
+                if LOGGING_VERBOSE == 1:
+                    logger.info(f"events payload => {payload}") 
+                
+                endpoint = "/web/event"
+                response = self._post(endpoint, payload, {"Authorization": token})                
+                
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
                         
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat()) 
+                        self.db.delete_events_screenshot(event_ids)
                         return {"status": f"Successfully synced total events => {len(event_ids)}" }
                     elif response_data.get("code") == REJECTED_SYNC_STATUS:
 
@@ -509,6 +554,8 @@ class ServerAPI:
                                 self.db.update_server_sync_status(list_of_ids=success_event_ids, new_status=1)
                                 time.sleep(5)
 
+                            self.db.delete_events_screenshot(event_screenshot_ids)
+
                         else:
 
                             if not response_data.get("data").get("uuid"):
@@ -520,12 +567,14 @@ class ServerAPI:
                                     os.remove(file_path)
 
                             else:
+                                self.db.delete_events_screenshot(event_screenshot_ids)
                                 self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
                                 logger.info(f"Updated the events id {event_ids} of mismatched mac address to 2.")
                                 time.sleep(5)
 
 
-                        if is_failed_event:                             
+                        if is_failed_event:
+                             self.db.delete_events_screenshot(event_screenshot_ids)                     
                              self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
                              logger.info(f"Updated the events of mismatched mac address to 2 after stopping the process.")
                              logger.info(f"is_failed_event 3 => {failed_event_ids}")
@@ -1049,32 +1098,12 @@ class ServerAPI:
         Inspired by: https://wakatime.com/developers#heartbeats
         """
 
-        def run_event_ocr(event_id):
-            if DEVELOPMENT_MODE != 0:
-                logger.info("run ocr")
-                creds = credentials()
-                user_id = creds.get('userId')
-                sd_pixel_engine_event_exe = os.path.join(get_running_path(), "sd-ocr-event.exe")
-                command_list = [
-                                sd_pixel_engine_event_exe,                 
-                                "--event_id", str(event_id),
-                                "--user_id", user_id,
-                                "--image_path", "",
-                                ]
-                logger.info(f"command_list => {command_list}")
-                start_exe(command_list)
-
-
-        logger.info(f"first heart beat => {heartbeat}")
-        # if heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] == "afk":
-        #     logger.info(f"store_credentials is_afk True => {heartbeat}")
-        #     store_credentials("is_afk", True)
-        # elif heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] != "afk":
-        #     logger.info(f"store_credentials is_afk False => {heartbeat}")
-        #     store_credentials("is_afk", False)
-        # if heartbeat["data"]["app"] and heartbeat["data"]["app"] != "afk"and get_credentials("is_afk"):
-        #     logger.info(f"get_credentials => {heartbeat}")
-        #     return heartbeat
+        if heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] == "afk":
+            store_credentials("is_afk", True)
+        elif heartbeat["data"]["app"] and heartbeat["data"]["app"] == "afk" and heartbeat["data"]["status"] != "afk":
+            store_credentials("is_afk", False)
+        if heartbeat["data"]["app"] and heartbeat["data"]["app"] != "afk"and get_credentials("is_afk"):
+            return heartbeat
 
         logger.debug(
             "Received heartbeat in bucket '{}'\n\ttimestamp: {}, duration: {}, pulsetime: {}\n\tdata: {}".format(
@@ -1104,6 +1133,7 @@ class ServerAPI:
                 last_event = last_events[0]
         else:
             last_event = self.last_event[bucket_id]
+
         # This function is called by the heartbeat_merge function.
         if last_event:
             # Heartbeat data is the same as heartbeat. data.
@@ -1118,43 +1148,17 @@ class ServerAPI:
                         )
                     )
 
-                    logger.info(f"merged => {merged}")
+
                     result = self.db[bucket_id].replace_last(merged)
-
-                    logger.info(f"result replace_last type => {result}")
+                    # logger.info(f"result type => {result}")
                     if result != 1:
-                        if not self.last_merge:
-                            self.last_merge['merge'] = merged
-                        else:
-                            if self.last_merge['merge'].get('id') != merged.get('id'):
-
-                                td =  self.last_merge['merge'].get('duration')
-                                total_seconds = td.total_seconds()
-                                if total_seconds >= 30 and self.last_merge['merge'].get('data').get('status') == "not-afk":
-                                    logger.info(f"merged return before not-afk => {self.last_merge['merge']}")
-                                    self.last_merge['merge'] = merged
-                                elif total_seconds >= 30:
-                                    latest_event_id = self.db.get_latest_event_id_screenshot()
-                                    logger.info(f"latest_event_id => {latest_event_id} => type => {type(latest_event_id)}")                
-                    
-                                    if latest_event_id is None:
-                                        logger.info(f"latest_event_id none => {latest_event_id} => type => {type(latest_event_id)}")
-                                        run_event_ocr(self.last_merge['merge'].get("id"))
-                                    elif self.last_merge['merge'].get("id") > latest_event_id:
-                                        logger.info("last_event is greater than latest self.last_merge['merge'].get('id')")
-                                        run_event_ocr(self.last_merge['merge'].get("id"))
-
-                                    logger.info(f"merged return before => {self.last_merge['merge']}")
-                                    self.last_merge['merge'] = merged
-                                
+                        # logger.info(f"replace_last result = {result}")
                         self.last_event[bucket_id] = merged
-                        logger.info(f"result not equal 1 => {self.last_event[bucket_id]}")                        
                         return merged
                     else:
                         heartbeat.id = None
                         heartbeat.duration = 0
                         heartbeat = self.db[bucket_id].insert(heartbeat)
-                        logger.info(f"heartbeat insert 1 => {heartbeat}")
                         if not heartbeat:
                             logger.warning("Failed to insert heartbeat")
                         else:
@@ -1183,30 +1187,9 @@ class ServerAPI:
             )
 
         heartbeat = self.db[bucket_id].insert(heartbeat)
-        logger.info(f"heartbeat insert 2 => {heartbeat}")
         self.last_event[bucket_id] = heartbeat
-
-        logger.info(f"last event after => {last_event}")
-        logger.info(f"heartbeat after => {heartbeat}")
-        logger.info(f"heartbeat afte self.last_event[bucket_id]r => {self.last_event[bucket_id]}")
-        if last_event:
-            logger.info(f"last_event.get('duration') => {last_event.get('duration')} => {type(last_event.get('duration'))}")
-
-        if last_event and last_event.get("id") != heartbeat.get("id"):
-            td = last_event.get('duration')
-            total_seconds = td.total_seconds()
-            if total_seconds >= 30:
-                latest_event_id = self.db.get_latest_event_id_screenshot()
-                logger.info(f"latest_event_id => {latest_event_id} => type => {type(latest_event_id)}")                
-
-                if latest_event_id is None:
-                    logger.info(f"latest_event_id none => {latest_event_id} => type => {type(latest_event_id)}")
-                    run_event_ocr(last_event.get("id"))
-                elif last_event.get("id") > latest_event_id:
-                    logger.info("last_event is greater than latest event_id")
-                    run_event_ocr(last_event.get("id"))                    
-
         return heartbeat
+
 
     def query2(self, name, query, timeperiods, cache):
         """
@@ -1587,7 +1570,7 @@ class ScreenShotQueue(threading.Thread):
                 if self.connected:
                     try:
                         for record in self.server.db.get_screenshot_record():
-
+                            logger.info(f"records => {record.file_path}")
                             # check if record.file_path file type is png
                             # it means there was no public key file found for encrypting the json file
                             tmp_file, ext = os.path.splitext(record.file_path)
@@ -1621,8 +1604,8 @@ class ScreenShotQueue(threading.Thread):
                                     logger.info(f"Error: File not found at {e}")
                                 except Exception as e:
                                     logger.info(f"Error: {e}")                            
-                            
-                            if record.is_ocr_text_enabled and  not record.ocr_text and record.is_event_screenshot:
+                            logger.info(f"record.is_event_screenshot => {record.is_event_screenshot}")
+                            if record.is_ocr_text_enabled and  not record.ocr_text and record.is_event_screenshot == 0:
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
