@@ -1582,8 +1582,9 @@ class ServerAPI:
         # get event id AND image path in screenshot record at LIST
         event_id_list = []
         for record in ocr_record:
-            if (record.ocr_text is None)and (Path(record.file_path).exists()):
-                event_id_list.append(str(record.event_id))
+            if Path(record.file_path).exists():
+                if record.ocr_text is None:
+                    event_id_list.append(str(record.event_id))
             else: #if file path is missing
                 record.delete_instance()
         image_path_list = [record.file_path for record in ocr_record if (record.ocr_text is None) and (Path(record.file_path).exists())]
@@ -1642,25 +1643,31 @@ class ServerAPI:
 
             return 
 
+        logger.debug(f'need to sync {event_ids}')
+
         for record in ocr_extraction:
 
             ocr_data = []
 
             if record.is_ocr_text_enabled:
-                try:
-                    ocr_text_json = json.loads(record.ocr_text)
-                    
-                    for data in ocr_text_json.get("data", []):
-                        text = data.get("text", "")
-                        
-                        if len(text) == 1:
-                            continue
-                        
-                        ocr_data.append(data)
 
-                except Exception as e:
-                    logger.error(f"OCR JSON parse failed: {e}")
-                    ocr_data = []
+                if record.event_id in event_ids:
+                    try:
+                        ocr_text_json = json.loads(record.ocr_text)
+                        
+                        for data in ocr_text_json.get("data", []):
+                            text = data.get("text", "")
+                        
+                            if len(text) == 1:
+                                continue
+
+                            ocr_data.append(data)
+
+                    except Exception as e:
+                        logger.error(f"OCR JSON parse failed: {e}")
+                        ocr_data = []
+                else:
+                    logger.debug(f'{record.event_id} is not in list to sync this time')
 
             for event in events:
 
