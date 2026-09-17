@@ -454,7 +454,6 @@ class ServerAPI:
             if DEVELOPMENT_MODE == 1:                    
                 latest_event_timestamp = self.db.get_latest_timestamp_event()
                 logger.info(f"latest_event_timestamp => {latest_event_timestamp.timestamp}")
-                logger.info(f"latest_event_timestamp type => {type(latest_event_timestamp.timestamp)}")  
                 if latest_event_timestamp.timestamp != "":
                     running_path = get_running_path()
                     sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")

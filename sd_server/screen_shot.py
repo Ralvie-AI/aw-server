@@ -215,7 +215,6 @@ def create_event_screenshot():
         abort(403, description="Forbidden: Request must originate from sd-ocr-event.exe")
 
     json_data = request.get_json()  # Expects Content-Type: application/json
-    logger.info(f"json_data => {json_data}")
     if not json_data:
         return jsonify({'error': 'No JSON payload provided'}), 400
     
