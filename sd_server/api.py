@@ -424,8 +424,6 @@ class ServerAPI:
 
     def extract_ocr_text(self, ocr_event_text):                        
         ocr_data = []
-        logger.info(f"ocr_event_text => {ocr_event_text}")
-        logger.info(f"ocr_event_text => {type(ocr_event_text)}")
         if ocr_event_text:                
             ocr_text_json = json.loads(ocr_event_text)
             for data in ocr_text_json.get('data'):
@@ -451,6 +449,17 @@ class ServerAPI:
             if not userId or not token:
                 logger.warning("User ID or token is missing; unable to sync.")
                 return {"status": "missing_credentials"}
+
+            
+            if DEVELOPMENT_MODE == 1:                    
+                latest_event_timestamp = self.db.get_latest_timestamp_event()
+                logger.info(f"latest_event_timestamp => {latest_event_timestamp.timestamp}")
+                logger.info(f"latest_event_timestamp type => {type(latest_event_timestamp.timestamp)}")  
+                if latest_event_timestamp.timestamp != "":
+                    running_path = get_running_path()
+                    sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")
+                    cmd = [sd_eventscreenshot_cleaner, str(userId), str(latest_event_timestamp.timestamp)]
+                    start_exe(cmd)
 
             data = self.get_non_sync_events()
             if data.get("status") == "NoEvents":
@@ -479,9 +488,7 @@ class ServerAPI:
                 
                 event_ids = [obj['event_id'] for obj in events]
                 ocr_event_results = self.db.get_event_ocr_text(event_ids)
-                logger.info(f"length ocr_event_results ocr_event_results => {ocr_event_results}")
-                logger.info(f"length ocr_event_results ocr_event_results => {len(ocr_event_results)}")
-
+    
                 if len(ocr_event_results) == 0:
                     for ocr_event in events:
                         logger.info(f"events => {ocr_event}")
@@ -489,7 +496,8 @@ class ServerAPI:
                                           ocr_event.get("timestamp"), 
                                           ocr_event.get("duration"),
                                           userId)
-          
+
+                ocr_event_results = self.db.get_event_ocr_text(event_ids)
                 ocr_event_dict = {}
                 event_screenshot_ids = []
                 for ocr_event_result in ocr_event_results:
@@ -509,7 +517,6 @@ class ServerAPI:
                         data["clientTimeZone"] = local_zone
                         data["sundial_version"] = RELEASE_VERSION       
 
-                logger.info(f"events events => {events}")
                 payload = {"userId": userId, "companyId": companyId, "events": events, "timeout": 60}
                 logger.info(f"events payload => {payload}")
                 if LOGGING_VERBOSE == 1:
