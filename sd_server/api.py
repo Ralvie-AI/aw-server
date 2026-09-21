@@ -449,12 +449,12 @@ class ServerAPI:
             if not userId or not token:
                 logger.warning("User ID or token is missing; unable to sync.")
                 return {"status": "missing_credentials"}
-
-            
+           
             if DEVELOPMENT_MODE == 1:                    
                 latest_event_timestamp = self.db.get_latest_timestamp_event()
-                logger.info(f"latest_event_timestamp => {latest_event_timestamp.timestamp}")
-                if latest_event_timestamp.timestamp != "":
+                logger.info(f"latest_event_timestamp => {latest_event_timestamp}")
+                logger.info(f"latest_event_timestamp => {type(latest_event_timestamp)}")
+                if latest_event_timestamp is not None:
                     running_path = get_running_path()
                     sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")
                     cmd = [sd_eventscreenshot_cleaner, str(userId), str(latest_event_timestamp.timestamp)]
