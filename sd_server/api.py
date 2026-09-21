@@ -547,6 +547,10 @@ class ServerAPI:
                             if failed_event_ids:
                                 logger.info(f"failed_event_ids 2 {failed_event_ids}")
                                 self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
+
+                                #delete ocr event
+                                self.db.delete_ocr_event(list_of_ids=failed_event_ids)
+
                                 time.sleep(5)
                             
                             if success_event_ids:
@@ -561,12 +565,19 @@ class ServerAPI:
                         else:
                             self.db.update_server_sync_status(list_of_ids=event_ids, new_status=2)
                             logger.info(f"Updated the events id {event_ids} of mismatched mac address to 2.")
+
+                            #delete ocr event
+                            self.db.delete_ocr_event(list_of_ids=event_ids)
+
                             time.sleep(5)
                         
                         if is_failed_event:                             
                              self.db.update_server_sync_status(list_of_ids=list(failed_event_ids), new_status=2)
                              logger.info(f"Updated the events of mismatched mac address to 2 after stopping the process.")
                              logger.info(f"is_failed_event 3 => {failed_event_ids}")
+
+                             #delete ocr event
+                             self.db.delete_ocr_event(list_of_ids=failed_event_ids)
 
                         logger.info(f"is_failed_event 4 => {failed_event_ids}")
                         server_pid = get_running_process_id("sd-server")
@@ -1536,24 +1547,6 @@ class ServerAPI:
     def get_lastest_event(self):
         return self.db.get_lastest_event()
 
-    # def get_non_sync_events(self) -> List[Event]:
-    #     events = self.db.get_non_sync_events()
-    #     if not events:
-    #         logger.info("No unsynced events found.")
-    #         return {"status": "NoEvents", "events": []}
-    #     try:
-    #         event_start = parser.isoparse(events[0]["timestamp"])
-    #         events_json = json.dumps({
-    #             "events": events,
-    #             "start_hour": event_start.hour,
-    #             "start_min": event_start.minute,
-    #             "start_date_time": event_start,
-    #         }, default=datetime_serializer)
-    #         return json.loads(events_json)
-    #     except Exception as e:
-    #         logger.error(f"Error parsing events: {e}")
-    #         return {"status": "error", "message": str(e)}
-
     def get_non_sync_events(self) -> List[Event]:
         events = self.db.get_non_sync_events()
         if not events:
@@ -1592,11 +1585,13 @@ class ServerAPI:
         # get event id AND image path in screenshot record at LIST
         event_id_list = []
         for record in ocr_record:
-            if Path(record.file_path).exists():
-                if record.ocr_text is None:
+            if record.ocr_text is None:
+                if Path(record.file_path).exists():
                     event_id_list.append(str(record.event_id))
-            else: #if file path is missing
-                record.delete_instance()
+                else: #if file is missing
+                    record.delete_instance()
+            else: #if this record is already doing ocr
+                pass
         image_path_list = [record.file_path for record in ocr_record if (record.ocr_text is None) and (Path(record.file_path).exists())]
 
         logger.debug(event_id_list)
