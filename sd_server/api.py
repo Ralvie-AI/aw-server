@@ -457,7 +457,11 @@ class ServerAPI:
                 if latest_event_timestamp is not None:
                     running_path = get_running_path()
                     sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")
-                    cmd = [sd_eventscreenshot_cleaner, str(userId), str(latest_event_timestamp.timestamp)]
+                    cmd = [sd_eventscreenshot_cleaner, 
+                           str(userId), 
+                           str(companyId),  
+                           str(latest_event_timestamp.timestamp)
+                           ]
                     start_exe(cmd)
 
             data = self.get_non_sync_events()
@@ -494,7 +498,9 @@ class ServerAPI:
                         run_event_ocr_exe(ocr_event.get("event_id"), 
                                           ocr_event.get("timestamp"), 
                                           ocr_event.get("duration"),
-                                          userId)
+                                          userId,
+                                          companyId
+                                          )
 
                 ocr_event_results = self.db.get_event_ocr_text(event_ids)
                 ocr_event_dict = {}
