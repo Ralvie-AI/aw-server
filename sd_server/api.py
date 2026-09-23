@@ -506,7 +506,8 @@ class ServerAPI:
                     data["sundial_version"] = TMP_VERSION
 
                 payload = {"userId": userId, "companyId": companyId, "events": events, "os": "macOS"}
-                logger.debug(f"event payload => {json.dumps(payload)}")
+                if STAGING == 1:
+                    logger.info(f"event payload => {json.dumps(payload)}")
                 endpoint = "/web/event"
                 response = self._post(endpoint, payload, {"Authorization": token})
                 event_ids = [obj['event_id'] for obj in events]
@@ -1374,6 +1375,11 @@ class ServerAPI:
                         merged['duration'] = timedelta(minutes=30)
                     result = self.db[bucket_id].replace_last(merged)
                     # logger.info(f"result type => {result}")
+                    
+                    if get_minutes(merged.get('duration')) >= 30:
+                        logger.debug(f'=== EVENT OVER 30 MINS ===')
+                        self._ocr_save_image(merged, heartbeat.timestamp)
+
                     if result != 1:
                         # logger.info(f"replace_last result = {result}")
                         logger.debug(f"4. replace_last result //return merged//")
@@ -1412,16 +1418,7 @@ class ServerAPI:
                 pass
 
 
-
-            if last_event.app == 'afk':
-                if last_event.data['status'] == 'afk':
-                    logger.debug(f"AFK: [{last_event.id} - {last_event.app}] doing ocr // {heartbeat.timestamp}")
-                    self._ocr_save_image(last_event, heartbeat.timestamp)
-                else:
-                    logger.debug(f"SKIP [event id:{last_event.id} - status: {last_event.data['status']}]")
-            else:
-                logger.debug(f"[{last_event.id} - {last_event.app}] doing ocr // {heartbeat.timestamp}")
-                self._ocr_save_image(last_event, heartbeat.timestamp)                
+            self._ocr_save_image(last_event, heartbeat.timestamp)          
 
         else:
             logger.info(
@@ -1439,6 +1436,15 @@ class ServerAPI:
         return heartbeat
 
     def _ocr_save_image(self, event: Event, event_time: datetime):
+
+        if event.app == 'afk':
+            if event.data['status'] == 'afk':
+                logger.debug(f"AFK: [{event.id} - {event.app}] doing ocr // {event_time}")
+            else:
+                logger.debug(f"SKIP [event id:{event.id} - status: {event.data['status']}]")
+                return 
+        else:
+            logger.debug(f"[{event.id} - {event.app}] doing ocr // {event_time}")
 
         logger.debug(f'[ocr save image] event id => [{event.id} - {event.app}: "{event.title}"] duration: {event.duration.seconds}')
         is_already_in_queue = self.db.get_ocr_event_by_event_ID(int(event.id))
@@ -1481,7 +1487,8 @@ class ServerAPI:
             'screenshot_time': screenshot_time if isinstance(screenshot_time, str) else screenshot_time.strftime("%Y-%m-%d %H:%M:%S.%f%z"),
         }
 
-        logger.debug(f'ocr save image payload: {payload}')
+        if STAGING == 1:
+            logger.info(f'ocr save image payload: {payload}')
         response = requests.post("http://localhost:7600/ocr_event/", json=payload)
         response.raise_for_status()
 
@@ -1661,7 +1668,7 @@ class ServerAPI:
                 if record.event_id in event_sync_id:
                     try:
                         ocr_text_json = json.loads(record.ocr_text)
-                        
+
                         for data in ocr_text_json.get("data", []):
                             text = data.get("text", "")
                         
