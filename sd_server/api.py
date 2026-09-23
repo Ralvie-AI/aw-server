@@ -1453,6 +1453,7 @@ class RalvieServerQueue(threading.Thread):
                     try:
                         sync_result = self.server.sync_events_to_ralvie()
                         logger.info(f"Sync result: {sync_result}")
+                        self.server.db.delete_events_batched()
                     except Exception as e:
                         logger.error(f"Error during sync: {e}")
                 else:
