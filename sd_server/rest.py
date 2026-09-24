@@ -17,8 +17,9 @@ from flask import (
     make_response,
     request,
     send_from_directory,
+    abort,
 )
-
+import psutil
 
 from sd_core.util import is_internet_connected, reset_user
 from sd_core.const import (
@@ -28,12 +29,27 @@ from sd_core.const import (
 )
 from sd_core import schema, db_cache
 from sd_core.models import Event
-from sd_core.cache import credentials
+from sd_core.cache import credentials, clear_all_credentials
 from sd_query.exceptions import QueryException
 from sd_core.os_util import is_windows
 from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
+
+ALLOWED_CLIENT_PROCESSES = {"sd-main.exe", "sd-main"}
+
+
+def get_client_process(client_ip: str, client_port: int):
+  """Find the process that owns the incoming local TCP connection."""
+  try:
+    for conn in psutil.net_connections(kind="tcp"):
+      # Match the client's local endpoint to the incoming request's remote endpoint
+      if conn.laddr and conn.laddr.ip == client_ip and conn.laddr.port == client_port:
+        if conn.pid:
+          return psutil.Process(conn.pid)
+  except (psutil.NoSuchProcess, psutil.AccessDenied):
+    pass
+  return None
 
 
 def host_header_check(f):
@@ -1028,3 +1044,33 @@ class LottieJs(Resource):
         if LOGGING_VERBOSE == 1:
             logger.info(f"api.blueprint_setup.app.static_folder: {api.blueprint_setup.app.static_folder}")
         return send_from_directory(api.blueprint_setup.app.static_folder, "js/lottie.min.js")
+
+@api.route("/0/clear_server_cache", doc=False)
+class ClearServerCache(Resource):
+    def post(self):
+        client_ip = request.remote_addr
+        client_port = request.environ.get("REMOTE_PORT")
+
+        logger.info(f"Clearing all credentials from cache => {client_ip}.")
+
+        if client_ip not in ("127.0.0.1", "::1") or not client_port:
+            abort(403, "Access restricted to local host.")
+
+        proc = get_client_process(client_ip, int(client_port))
+        if not proc:
+            abort(403, "Could not resolve origin process.")
+
+        try:
+            proc_name = proc.name().lower()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            abort(403, "Access denied reading process info.")
+
+        if proc_name not in [p.lower() for p in ALLOWED_CLIENT_PROCESSES]:
+            abort(403, f"Unauthorized caller: {proc_name}")
+
+        # Process verified
+        logger.info("Clearing all credentials from cache.")
+        clear_all_credentials()
+
+        # Return raw dict and HTTP status code directly:
+        return {"status": "revoked", "origin": proc_name}, 200
