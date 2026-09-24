@@ -441,6 +441,7 @@ class ServerAPI:
 
             if cached_credentials is None:
                 logger.info(f"There was no keychain_item_exists.")
+                return {"status": "There was no keychain_item_exists."}                
 
             userId = cached_credentials.get('userId')
             companyId = cached_credentials.get('companyId')
@@ -1506,6 +1507,7 @@ class ScreenShotQueue(threading.Thread):
 
         if cached_credentials is None:
             logger.info(f"There was no keychain_item_exists.")
+            return None, None, "no_keychain_item_exists"
             
         userId = cached_credentials.get('userId')
         companyId = cached_credentials.get('companyId')
@@ -1643,6 +1645,11 @@ class ScreenShotQueue(threading.Thread):
                                 logger.info(f"record.ocr_text => {record.ocr_text}")
 
                             pre_signed_url, object_key, pre_signed_url_response_code = self.get_pre_signed_url()
+
+                            
+                            if pre_signed_url_response_code == "no_keychain_item_exists":
+                                self.connected = False
+                                break
 
                             if pre_signed_url_response_code is None:
                                 break
