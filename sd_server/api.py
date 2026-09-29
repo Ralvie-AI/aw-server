@@ -1375,15 +1375,13 @@ class ServerAPI:
                         merged['duration'] = timedelta(minutes=30)
                     result = self.db[bucket_id].replace_last(merged)
                     # logger.info(f"result type => {result}")
-                    
-                    if get_minutes(merged.get('duration')) >= 30:
-                        logger.debug(f'=== EVENT OVER 30 MINS ===')
-                        self._ocr_save_image(merged, heartbeat.timestamp)
-
                     if result != 1:
                         # logger.info(f"replace_last result = {result}")
                         logger.debug(f"4. replace_last result //return merged//")
                         self.last_event[bucket_id] = merged
+                        if merged.get('data').get('status') == 'afk':
+                            logger.debug(f'=== IDLE TIME ===')
+                            self._ocr_save_image(merged, heartbeat.timestamp)
                         logger.debug(f'===================================')
                         return merged
                     else:
@@ -1476,6 +1474,15 @@ class ServerAPI:
         from sd_ocr_event.utils import get_image
 
         screenshot_path, screenshot_time = get_image(event_start_time, event_end_time, user_id, event_id)
+
+        if screenshot_path is None:
+            if event.app == 'afk':
+                screenshot_path = 'Screen is locked.'
+                screenshot_time = event_end_time
+                logger.debug(f'event id: {event_id}, Screen is locked.')
+            else:
+                logger.debug('image not found')
+                return
 
         if screenshot_path is None:
             logger.debug('image not found')
@@ -1684,7 +1691,6 @@ class ServerAPI:
                     logger.debug(f'event id "{record.event_id}" is not in list to sync this time')
 
             for event in events:
-
                 if event['id'] in event_ids:
 
                     if event['id'] == record.event_id:

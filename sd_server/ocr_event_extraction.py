@@ -24,14 +24,21 @@ def ocr_event():
     screenshot_time = json_data.get('screenshot_time')
 
     logger.debug(f'event_id: {event_id}, screenshot_path: {screenshot_path}, screenshot_time: {screenshot_time}')
-    
 
-    data = {
-        "event_id": event_id,
-        "file_path": screenshot_path,
-        "created_at": screenshot_time,
-        "is_event_screenshot": 1
-    }
+    if screenshot_path == 'Screen is locked.':
+        data = {
+            "event_id": event_id,
+            "ocr_text": json.dumps({"data": [{"text": "Screen is locked."}]}),
+            "created_at": screenshot_time,
+            "is_event_screenshot": 1
+        }    
+    else:
+        data = {
+            "event_id": event_id,
+            "file_path": screenshot_path,
+            "created_at": screenshot_time,
+            "is_event_screenshot": 1
+        }
 
     current_app.api.db.save_screenshot(data)
 
