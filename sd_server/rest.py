@@ -17,13 +17,15 @@ from flask import (
     jsonify,
     make_response,
     request,
+    abort,
 )
+import subprocess
 
 from sd_core.launch_start import delete_launch_app, launch_app, check_startup_status, set_autostart_registry
 from sd_core.util import authenticate, is_internet_connected, reset_user
 from sd_core import schema, db_cache
 from sd_core.models import Event
-from sd_core.cache import (cache_user_credentials, credentials)
+from sd_core.cache import (cache_user_credentials, credentials, clear_all_credentials)
 from sd_query.exceptions import QueryException
 from . import logger
 from .api import ServerAPI
@@ -35,6 +37,57 @@ from sd_core.const import CACHE_KEY as cache_key
 application_cache_key = "application_cache"
 manager = Manager()
 
+ALLOWED_CLIENT_PROCESSES = {"sd-main.exe", "sd-main"}
+
+def get_client_process(client_ip: str, client_port: int) -> list | None:
+
+    client_process = []
+
+    # Find processes that own the client's IP and port
+    result = subprocess.run(
+        ["lsof", "-nP", f"-iTCP@{client_ip}:{client_port}",],
+        capture_output=True,
+        text=True,
+    )
+
+    # Get lsof output as a list of lines
+    all_result_lines = result.stdout.strip().splitlines()
+    logger.debug(f'get_client_process[all_result_lines] => {all_result_lines}')
+
+    # Return None if no process is found
+        # Line 1: header [COMMAND     PID     USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME]
+        # Lines after line 1: data
+    if len(all_result_lines) < 2:
+        return None
+
+    # remove header line
+    all_result_lines.pop(0)
+
+    for line in all_result_lines:
+
+        parts = line.split()
+        logger.debug(f'get_client_process[line] => {parts}')
+
+        # Skip the result if it does not contain enough information
+        if len(parts) < 2:
+            continue
+
+        # Get the process name and PID from lsof output
+        name = parts[0]
+
+        logger.debug(f'name: {name}')
+
+        # Skip processes that are not allowed clients
+        if name not in ALLOWED_CLIENT_PROCESSES:
+            logger.debug(f'"{name}" not in {ALLOWED_CLIENT_PROCESSES}')
+            continue
+
+        # Add the allowed client process to the result
+        client_process.append(name)
+
+    logger.debug(f'client process => {client_process}')
+
+    return client_process
 
 def get_potential_location_and_zone(minutes_difference):
     """
@@ -1503,3 +1556,38 @@ class initdb(Resource):
 class server_status(Resource):
     def get(self):
         return 200
+
+@api.route("/0/clear_server_cache", doc=False)
+class ClearServerCache(Resource):
+    def post(self):
+        client_ip = request.remote_addr
+        client_port = request.environ.get("REMOTE_PORT")
+
+        logger.info(f"Clearing all credentials from cache => {client_ip}.")
+
+        if client_ip not in ("127.0.0.1", "::1") or not client_port:
+            logger.info("Access restricted to local host.")
+            abort(403, "Access restricted to local host.")
+
+        logger.debug(f"client[ip:port]=> {client_ip}:{client_port}")
+
+        proc = get_client_process(client_ip, int(client_port))
+
+        logger.debug(f"proc=> {proc}")
+
+        if not proc:
+            logger.info("Could not resolve origin process.")
+            abort(403, "Could not resolve origin process.")
+
+        for proc_name in proc:
+
+            if proc_name.lower() not in [p.lower() for p in ALLOWED_CLIENT_PROCESSES]:
+                logger.info(f"Unauthorized caller: {proc_name.lower()}")
+                abort(403, f"Unauthorized caller: {proc_name.lower()}")
+
+            # Process verified
+            logger.info("Clearing all credentials from cache.")
+            clear_all_credentials()
+
+            # Return raw dict and HTTP status code directly:
+            return {"status": "revoked", "origin": proc_name}, 200
