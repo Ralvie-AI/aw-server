@@ -40,7 +40,7 @@ from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, R
 from sd_server.ocr_active import ActiveWindowOCRText
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 from sd_main.sd_desktop.util import (credentials)
-from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id
+from sd_main.sd_desktop.monitor import  stop_process, get_running_process_id, SETTING_URL
 from sd_server.resource_monitor import ResourceMonitor
 from sd_core.log import setup_logging
 
@@ -1435,6 +1435,20 @@ class ServerAPI:
 
     def _ocr_save_image(self, event: Event, event_time: datetime):
 
+        # Check event time duration
+        if event.duration.seconds < 30:
+            logger.debug(f'[{event.id} - {event.app}] Time duration < 30')
+            return
+        logger.debug(f'[{event.id} - {event.app}] is over than 30 sec {event.duration.seconds}')
+
+        # Check is event already in queue
+        is_already_in_queue = self.db.get_ocr_event_by_event_ID(int(event.id))
+        if is_already_in_queue:
+            logger.debug(f'[{event.id} - {event.app}] This Event id Already IN QUEUE')
+            return        
+        
+        # Check idle time event 
+            # because we need to sync 'afk', but do not sync 'non-afk'
         if event.app == 'afk':
             if event.data['status'] == 'afk':
                 logger.debug(f"AFK: [{event.id} - {event.app}] doing ocr // {event_time}")
@@ -1444,20 +1458,21 @@ class ServerAPI:
         else:
             logger.debug(f"[{event.id} - {event.app}] doing ocr // {event_time}")
 
+        # Check isOcrTextEnabled
+        creds = credentials()
+        params = {
+            "userId": creds.get('userId'),
+            "companyId": creds.get('companyId'),
+        }     
+        response = (requests.get(SETTING_URL, params=params)).json()
+        res_data = response['data']
+        is_ocr_text_enable = res_data['isOcrTextEnabled']
+        if not is_ocr_text_enable:
+            logger.debug(f'ocr text is not enable')
+            return
+
         logger.debug(f'[ocr save image] event id => [{event.id} - {event.app}: "{event.title}"] duration: {event.duration.seconds}')
-        is_already_in_queue = self.db.get_ocr_event_by_event_ID(int(event.id))
-
-        if is_already_in_queue:
-            logger.debug(f'[{event.id} - {event.app}] This Event id Already IN QUEUE')
-            return
-
-        if event.duration.seconds < 30:
-            logger.debug(f'[{event.id} - {event.app}] Time duration < 30')
-            return
         
-
-        logger.debug(f'[{event.id} - {event.app}] is over than 30 sec {event.duration.seconds}')
-
         # event id
         event_id = event.id
 
@@ -1608,9 +1623,6 @@ class ServerAPI:
                 pass
         image_path_list = [record.file_path for record in ocr_record if (record.ocr_text is None) and (Path(record.file_path).exists())]
 
-        logger.debug(event_id_list)
-        logger.debug(image_path_list)
-
         if event_id_list:
 
             # check if sd-ocr-event is running
@@ -1637,9 +1649,6 @@ class ServerAPI:
 
     def _mapping_event_ocr(self, events: List[Event]) -> list[Event]:
 
-        #get total rows in screenshotmodel where is_event_screenshot = 1
-        ocr_waiting_to_sync = self.db.get_screenshot_record_count(1)
-
         #get all rows in screenshotmodel where is_event_screenshot = 1
         ocr_extraction = self.db.get_screenshot_record(1)
 
@@ -1648,21 +1657,6 @@ class ServerAPI:
         event_sync_id = [event["event_id"] for event in events]
 
         matched_event = []
-
-        #if have no row in screenshotmodel
-        if ocr_waiting_to_sync == 0:
-            # This means OCR cannot be performed, so 'ocrText' will be None.
-            # 'ocrStatus' must be False because if it is True, sd-pixel-engine-event should already be running.
-                # When a new event arrives, the previous event must be checked immediately.
-                    # If the event duration >= 30 seconds, the screenshot[shot by sd-pixel-engine-event] will be matched
-                    # then appended to ScreenshotModel.
-            for event in events:
-                event['ocrText'] = None
-                event['ocrStatus'] = False
-
-                matched_event.append(event)
-
-            return 
 
         logger.debug(f'need to sync {event_sync_id}')
 
@@ -1689,10 +1683,14 @@ class ServerAPI:
                         ocr_data = []
                 else:
                     logger.debug(f'event id "{record.event_id}" is not in list to sync this time')
+                    query_result = self.db.get_event_by_id(record.event_id)
+                    if query_result.server_sync_status != 0:
+                        record.delete_instance()
+                        logger.debug(f"[DEL] event id {record.event_id}'s server sync status is {query_result.server_sync_status}")
 
-            for event in events:
-                if event['id'] in event_ids:
-
+            for event in events: #event from get_non_sync_event
+                if event['id'] in event_ids: 
+                    # All records in screenshotmodel ocrStatus = True because isOcrTextEnabled is True.
                     if event['id'] == record.event_id:
                         event['ocrText'] = ocr_data
                         event['ocrStatus'] = True
@@ -1700,8 +1698,9 @@ class ServerAPI:
                         record.save()
 
                 else:
+                    # No screenshot is saved for OCR because isOcrTextEnabled is False
                     event['ocrText'] = None
-                    event['ocrStatus'] = True
+                    event['ocrStatus'] = False
 
                 matched_event.append(event)
 
