@@ -8,7 +8,7 @@ sd_core_path = os.path.dirname(sd_core.__file__)
 
 import flask_restx
 restx_path = os.path.dirname(flask_restx.__file__)
-
+excludes_package = ["PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineCore"]
 block_cipher = None
 
 
@@ -37,7 +37,7 @@ a = Analysis(['__main__.py'],
             ],
              hookspath=[],
              runtime_hooks=[],
-             excludes=[],
+             excludes=excludes_package,
              win_no_prefer_redirects=False,
              win_private_assemblies=False,
              cipher=block_cipher)
