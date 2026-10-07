@@ -422,7 +422,7 @@ class ServerAPI:
         return self._put(endpoint , payload)
 
 
-    def extract_ocr_text(self, ocr_event_text):                        
+    def extract_ocr_text_old(self, ocr_event_text):                        
         ocr_data = []
         if ocr_event_text:                
             ocr_text_json = json.loads(ocr_event_text)
@@ -432,6 +432,18 @@ class ServerAPI:
                 ocr_data.append(data)
         logger.info(f"ocr_data => {ocr_data}")
         return ocr_data  
+
+    def extract_ocr_text(self, ocr_event_text):                        
+        ocr_data = ""
+        if ocr_event_text:
+            ocr_text_json = json.loads(ocr_event_text) 
+            ocr_data = "\\n".join(
+                    item['text']
+                    for item in ocr_text_json.get("data")
+                    if len(item['text']) > 1
+                )
+        logger.info(f"ocr_data => {ocr_data}")
+        return ocr_data 
 
     def sync_events_to_ralvie(self):
 
@@ -450,6 +462,8 @@ class ServerAPI:
             if not userId or not token:
                 logger.warning("User ID or token is missing; unable to sync.")
                 return {"status": "missing_credentials"}
+
+            self.db.delete_screenshot_event_ids()
            
             if DEVELOPMENT_MODE == 1:                    
                 latest_event_timestamp = self.db.get_latest_timestamp_event()
@@ -517,7 +531,7 @@ class ServerAPI:
                 else:                        
                     for data in events:
                         data["ocrStatus"] = False
-                        data["ocrText"] = []
+                        data["ocrText"] = ""
                         data["clientTimeZone"] = local_zone
                         data["sundial_version"] = RELEASE_VERSION       
 
