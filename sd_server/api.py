@@ -440,7 +440,7 @@ class ServerAPI:
             ocr_data = "\\n".join(
                     item['text']
                     for item in ocr_text_json.get("data")
-                    if len(item['text']) > 1
+                    if len(item['text']) > 1 and len(item['text'].strip()) > 1
                 )
         logger.info(f"ocr_data => {ocr_data}")
         return ocr_data 
