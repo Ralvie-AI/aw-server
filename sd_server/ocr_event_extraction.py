@@ -28,7 +28,7 @@ def ocr_event():
     if screenshot_path == 'Screen is locked.':
         data = {
             "event_id": event_id,
-            "ocr_text": screenshot_path,
+            "ocr_text": json.dumps({"data": [{"text": "Screen is locked."}]}),
             "created_at": screenshot_time,
             "is_event_screenshot": 1
         }    
