@@ -1460,15 +1460,23 @@ class ServerAPI:
 
         # Check isOcrTextEnabled
         creds = credentials()
+
+        if not creds or not all((creds.get("userId"), creds.get("companyId"))):
+            return
+        
         params = {
             "userId": creds.get('userId'),
             "companyId": creds.get('companyId'),
-        }     
-        response = (requests.get(SETTING_URL, params=params)).json()
-        res_data = response['data']
-        is_ocr_text_enable = res_data['isOcrTextEnabled']
-        if not is_ocr_text_enable:
-            logger.debug(f'ocr text is not enable')
+        }         
+        try:   
+            response = (requests.get(SETTING_URL, params=params)).json()
+            res_data = response['data']
+            is_ocr_text_enable = res_data['isOcrTextEnabled']
+            if not is_ocr_text_enable:
+                logger.debug(f'ocr text is not enable')
+                return
+        except Exception as e:
+            logger.info(e)
             return
 
         logger.debug(f'[ocr save image] event id => [{event.id} - {event.app}: "{event.title}"] duration: {event.duration.seconds}')
@@ -1662,7 +1670,7 @@ class ServerAPI:
 
         for record in ocr_extraction:
 
-            ocr_data = []
+            ocr_data = ""
 
             if record.is_ocr_text_enabled:
 
@@ -1670,17 +1678,15 @@ class ServerAPI:
                     try:
                         ocr_text_json = json.loads(record.ocr_text)
 
-                        for data in ocr_text_json.get("data", []):
-                            text = data.get("text", "")
-                        
-                            if len(text) == 1:
-                                continue
-
-                            ocr_data.append(data)
+                        ocr_data = "\\n".join(
+                                item['text']
+                                for item in ocr_text_json.get("data")
+                                if len(item['text']) > 1
+                            )
 
                     except Exception as e:
                         logger.error(f"OCR JSON parse failed: {e}")
-                        ocr_data = []
+                        ocr_data = ""
                 else:
                     logger.debug(f'event id "{record.event_id}" is not in list to sync this time')
                     query_result = self.db.get_event_by_id(record.event_id)
