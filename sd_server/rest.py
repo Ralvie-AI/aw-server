@@ -562,9 +562,9 @@ class HeartbeatResource(Resource):
         day_name = current_time.strftime("%A").lower()
         schedule = settings.get("schedule", False)
 
-        if not schedule:
-            print(f"Skipping data capture: no schedule configured.")
-            return {"message": f"Skipping data capture: no schedule configured."}, 200
+        # if not schedule:
+        #     print(f"Skipping data capture: no schedule configured.")
+        #     return {"message": f"Skipping data capture: no schedule configured."}, 200
 
         # Check if the current day is scheduled (True)
         if not weekdays_schedule.get(day_name.capitalize(), False) and schedule:
