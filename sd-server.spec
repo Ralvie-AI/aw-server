@@ -3,81 +3,88 @@
 
 import os
 
-import sd_core
-sd_core_path = os.path.dirname(sd_core.__file__)
-
 import flask_restx
-restx_path = os.path.dirname(flask_restx.__file__)
 
+import sd_core
+
+restx_path = os.path.dirname(flask_restx.__file__)
+sd_core_path = os.path.dirname(sd_core.__file__)
 block_cipher = None
 
-
-a = Analysis(['__main__.py'],
-             pathex=[],
-             binaries=None,
-             datas=[
-                (os.path.join(restx_path, 'templates'), 'flask_restx/templates'),
-                (os.path.join(restx_path, 'static'), 'flask_restx/static'),
-                (os.path.join(sd_core_path, 'schemas'), 'sd_core/schemas'),
-                ("sd_server/static", "sd_server/static")
-             ],
-            hiddenimports=[
-            'reportlab',
-            'reportlab.graphics',
-            'reportlab.lib.utils',
-            'reportlab.rl_settings',
-            'reportlab.lib.units',
-            'reportlab.pdfbase.pdfmetrics',
-            'reportlab.graphics.barcode.common',
-            'reportlab.graphics.barcode.code128',
-            'reportlab.graphics.barcode.code93',
-            'reportlab.graphics.barcode.code39',
-            'reportlab.graphics.barcode.usps',
-            'reportlab.graphics.barcode.usps4s',
-            'reportlab.graphics.barcode.ecc200datamatrix',
-            ],
-             hookspath=[],
-             runtime_hooks=[],
-             excludes=[               
-               'PySide6.QtWebChannel', 
-               'PySide6.QtWebEngineCore', 
-               'PySide6.QtWebEngineWidgets',
-               'PySide6.QtWebContext',
-               'PySide6.QtNetwork',
-               'PySide6.QtCore',
-               'PySide6.QtGui',
-               'PySide6.QtSvg',
-               'PySide6.QtWidgets',
-               'PySide6.QtSvg',
-               'PySide6.QtQuick',
-               'PySide6.QtQml',
-            ],
-             win_no_prefer_redirects=False,
-             win_private_assemblies=False,
-             cipher=block_cipher)
-pyz = PYZ(a.pure, a.zipped_data,
-             cipher=block_cipher)
-exe = EXE(pyz,
-          a.scripts,
-          exclude_binaries=True,
-          name='sd-server',
-          contents_directory=".",
-          debug=False,
-          strip=False,
-          upx=True,
-          console=True,
-          upx_exclude=[
-             '_uuid.pyd',
-            'vcruntime140.dll',
-            'ucrtbase.dll',
-            'python3.dll',
-            'python311.dll',
-         ],
-         )
-coll = COLLECT(exe,
-               a.binaries,
-               a.zipfiles,
-               a.datas,
-               strip=False,
-               upx=True,
-               name='sd-server')
+a = Analysis(
+   ['__main__.py'],
+   pathex=[],
+   binaries=None,
+   datas=[      
+      (os.path.join(restx_path, 'templates'), 'flask_restx/templates'),
+      (os.path.join(restx_path, 'static'), 'flask_restx/static'),
+      (os.path.join(sd_core_path, 'schemas'), 'sd_core/schemas'),
+      ("sd_server/static", "sd_server/static")
+   ],
+   hiddenimports=[
+      'reportlab',
+      'reportlab.graphics',
+      'reportlab.lib.utils',
+      'reportlab.rl_settings',
+      'reportlab.lib.units',
+      'reportlab.pdfbase.pdfmetrics',
+      'reportlab.graphics.barcode.common',
+      'reportlab.graphics.barcode.code128',
+      'reportlab.graphics.barcode.code93',
+      'reportlab.graphics.barcode.code39',
+      'reportlab.graphics.barcode.usps',
+      'reportlab.graphics.barcode.usps4s',
+      'reportlab.graphics.barcode.ecc200datamatrix',
+   ],
+   hookspath=[],
+   runtime_hooks=[],
+   excludes=[               
+      'PySide6.QtWebChannel', 
+      'PySide6.QtWebEngineCore', 
+      'PySide6.QtWebEngineWidgets',
+      'PySide6.QtWebContext',
+      'PySide6.QtNetwork',
+      'PySide6.QtCore',
+      'PySide6.QtGui',
+      'PySide6.QtSvg',
+      'PySide6.QtWidgets',
+      'PySide6.QtSvg',
+      'PySide6.QtQuick',
+      'PySide6.QtQml',
+   ],
+   win_no_prefer_redirects=False,
+   win_private_assemblies=False,
+   cipher=block_cipher
+)
+pyz = PYZ(
+   a.pure, 
+   a.zipped_data,
+   cipher=block_cipher
+)
+exe = EXE(
+   pyz,
+   a.scripts,
+   exclude_binaries=True,
+   name='sd-server',
+   contents_directory=".",
+   debug=False,
+   strip=False,
+   upx=True,
+   console=True,
+   upx_exclude=[
+      '_uuid.pyd',
+      'vcruntime140.dll',
+      'ucrtbase.dll',
+      'python3.dll',
+      'python311.dll',
+   ],
+)
+coll = COLLECT(
+   exe,
+   a.binaries,
+   a.zipfiles,
+   a.datas,
+   strip=False,
+   upx=True,
+   name='sd-server'
+)
