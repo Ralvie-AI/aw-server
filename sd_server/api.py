@@ -525,13 +525,13 @@ class ServerAPI:
                 if len(ocr_event_results) > 0:
                     for data in events:
                         data["ocrStatus"] = True
-                        data["ocrText"] = ocr_event_dict.get(data.get("id"))
+                        data["ocrText"] = { "text": ocr_event_dict.get(data.get("id")) }
                         data["clientTimeZone"] = local_zone
                         data["sundial_version"] = RELEASE_VERSION  
                 else:                        
                     for data in events:
                         data["ocrStatus"] = False
-                        data["ocrText"] = ""
+                        data["ocrText"] = { "text": "No text" }
                         data["clientTimeZone"] = local_zone
                         data["sundial_version"] = RELEASE_VERSION       
 
