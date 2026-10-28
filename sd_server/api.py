@@ -1698,14 +1698,14 @@ class ServerAPI:
                 if event['id'] in event_ids: 
                     # All records in screenshotmodel ocrStatus = True because isOcrTextEnabled is True.
                     if event['id'] == record.event_id:
-                        event['ocrText'] = ocr_data
+                        event['ocrText'] = {"text": ocr_data}
                         event['ocrStatus'] = True
                         record.sync_status = 1
                         record.save()
 
                 else:
                     # No screenshot is saved for OCR because isOcrTextEnabled is False
-                    event['ocrText'] = None
+                    event['ocrText'] = { "text": "No text" }
                     event['ocrStatus'] = False
 
                 matched_event.append(event)
