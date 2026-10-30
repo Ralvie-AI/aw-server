@@ -151,7 +151,6 @@ class ServerAPI:
         self.db = db
         self.testing = testing
         self.last_event = {}  # Stores the last event for each bucket to optimize event updates.
-        self.last_merge = {}
 
         # Configure server address.
         self.server_address = f"{PROTOCOL}://{REMOTE_HOST}"
