@@ -421,18 +421,6 @@ class ServerAPI:
         endpoint = f"/web/user/authorize/refresh_token"
         return self._put(endpoint , payload)
 
-
-    def extract_ocr_text_old(self, ocr_event_text):                        
-        ocr_data = []
-        if ocr_event_text:                
-            ocr_text_json = json.loads(ocr_event_text)
-            for data in ocr_text_json.get('data'):
-                if len(data.get('text')) == 1:
-                    continue 
-                ocr_data.append(data)
-        logger.info(f"ocr_data => {ocr_data}")
-        return ocr_data  
-
     def extract_ocr_text(self, ocr_event_text):                        
         ocr_data = ""
         if ocr_event_text:
@@ -442,7 +430,7 @@ class ServerAPI:
                     for item in ocr_text_json.get("data")
                     if len(item['text']) > 1 and len(item['text'].strip()) > 1
                 )
-        logger.info(f"ocr_data => {ocr_data}")
+        # logger.info(f"ocr_data => {ocr_data}")
         return ocr_data 
 
     def sync_events_to_ralvie(self):
@@ -507,7 +495,7 @@ class ServerAPI:
     
                 if len(ocr_event_results) == 0:
                     for ocr_event in events:
-                        logger.info(f"events => {ocr_event}")
+
                         run_event_ocr_exe(ocr_event.get("event_id"), 
                                           ocr_event.get("timestamp"), 
                                           ocr_event.get("duration"),
@@ -1597,7 +1585,6 @@ class ScreenShotQueue(threading.Thread):
                 if self.connected:
                     try:
                         for record in self.server.db.get_screenshot_record():
-                            logger.info(f"records => {record.file_path}")
                             # check if record.file_path file type is png
                             # it means there was no public key file found for encrypting the json file
                             tmp_file, ext = os.path.splitext(record.file_path)
@@ -1631,7 +1618,7 @@ class ScreenShotQueue(threading.Thread):
                                     logger.info(f"Error: File not found at {e}")
                                 except Exception as e:
                                     logger.info(f"Error: {e}")                            
-                            logger.info(f"record.is_event_screenshot => {record.is_event_screenshot}")
+
                             if record.is_ocr_text_enabled and  not record.ocr_text and record.is_event_screenshot == 0:
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
