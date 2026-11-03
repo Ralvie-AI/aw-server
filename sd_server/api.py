@@ -1700,8 +1700,6 @@ class ServerAPI:
                     if event['id'] == record.event_id:
                         event['ocrText'] = {"text": ocr_data}
                         event['ocrStatus'] = True
-                        record.sync_status = 1
-                        record.save()
 
                 else:
                     # No screenshot is saved for OCR because isOcrTextEnabled is False
