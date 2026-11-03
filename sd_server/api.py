@@ -451,18 +451,6 @@ class ServerAPI:
                 return {"status": "missing_credentials"}
 
             self.db.delete_screenshot_event_ids()
-           
-            if DEVELOPMENT_MODE == 1:                    
-                latest_event_timestamp = self.db.get_latest_timestamp_event()
-                if latest_event_timestamp is not None:
-                    running_path = get_running_path()
-                    sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")
-                    cmd = [sd_eventscreenshot_cleaner, 
-                           str(userId), 
-                           str(companyId),  
-                           str(latest_event_timestamp.timestamp)
-                           ]
-                    start_exe(cmd)
 
             data = self.get_non_sync_events()
             if data.get("status") == "NoEvents":
@@ -501,6 +489,17 @@ class ServerAPI:
                                           userId,
                                           companyId
                                           )
+
+                if DEVELOPMENT_MODE == 1:
+                    latest_event_timestamp = events[-1].get('timestamp')
+                    running_path = get_running_path()
+                    sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")
+                    cmd = [sd_eventscreenshot_cleaner, 
+                            str(userId), 
+                            str(companyId),  
+                            str(latest_event_timestamp)
+                            ]
+                    start_exe(cmd)
 
                 ocr_event_results = self.db.get_event_ocr_text(event_ids)
                 ocr_event_dict = {}
