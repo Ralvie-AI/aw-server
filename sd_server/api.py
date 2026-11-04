@@ -1635,10 +1635,42 @@ class ServerAPI:
             for image in image_path_list:
                 os.remove(image)
 
+    def _get_all_ocr_texts(self, ocr_extraction: list) -> Dict:
+
+        """Retrieve OCR text from database"""
+
+        from collections import defaultdict
+
+        ocr_data = {}
+        ocr_data = defaultdict(str)
+
+        for record in ocr_extraction:
+
+            if record.is_ocr_text_enabled:
+
+                try:
+                    ocr_text_json = json.loads(record.ocr_text)
+
+                    data = "\\n".join(
+                            item['text']
+                            for item in ocr_text_json.get("data")
+                            if len(item['text']) > 1
+                        )
+                    ocr_data[record.event_id] += data 
+                except Exception as e:
+                    logger.error(f"OCR JSON parse failed: {e}")
+                    ocr_data[record.event_id] = None
+
+        return dict(ocr_data)
+
     def _mapping_event_ocr(self, events: List[Event]) -> list[Event]:
 
         #get all rows in screenshotmodel where is_event_screenshot = 1
         ocr_extraction = self.db.get_screenshot_record(1)
+        
+        #get all ocr data
+        ocr_datas = self._get_all_ocr_texts(ocr_extraction)
+        logger.info(f'ocr_datas=> {ocr_datas}')
 
         #append all event id 
         event_ids = [record.event_id for record in ocr_extraction]
@@ -1648,56 +1680,20 @@ class ServerAPI:
 
         logger.debug(f'need to sync {event_sync_id}')
 
-        if not event_ids:
-            logger.debug("have no ocr text's screenshot event")
-            for event in events: #event from get_non_sync_event
+        for event in events: #event from get_non_sync_event
+            event_id = event["id"]
+            if event_id in event_ids: 
+                # All records in screenshotmodel ocrStatus = True because isOcrTextEnabled is True.
+                ocr_data = ocr_datas[event_id]
+
+                event['ocrText'] = {"text": ocr_data}
+                event['ocrStatus'] = True
+
+            else:
                 # No screenshot is saved for OCR because isOcrTextEnabled is False
                 event['ocrText'] = { "text": "No text" }
-                event['ocrStatus'] = False
-
-                matched_event.append(event)            
-            return
-        
-        for record in ocr_extraction:
-
-            ocr_data = ""
-
-            if record.is_ocr_text_enabled:
-
-                if record.event_id in event_sync_id:
-                    try:
-                        ocr_text_json = json.loads(record.ocr_text)
-
-                        ocr_data = "\\n".join(
-                                item['text']
-                                for item in ocr_text_json.get("data")
-                                if len(item['text']) > 1
-                            )
-
-                    except Exception as e:
-                        logger.error(f"OCR JSON parse failed: {e}")
-                        ocr_data = ""
-                else:
-                    logger.debug(f'event id "{record.event_id}" is not in list to sync this time')
-                    query_result = self.db.get_event_by_id(record.event_id)
-                    if query_result.server_sync_status != 0:
-                        record.delete_instance()
-                        logger.debug(f"[DEL] event id {record.event_id}'s server sync status is {query_result.server_sync_status}")
-
-            for event in events: #event from get_non_sync_event
-                if event['id'] in event_ids: 
-                    # All records in screenshotmodel ocrStatus = True because isOcrTextEnabled is True.
-                    if event['id'] == record.event_id:
-                        event['ocrText'] = {"text": ocr_data}
-                        event['ocrStatus'] = True
-
-                else:
-                    # No screenshot is saved for OCR because isOcrTextEnabled is False
-                    event['ocrText'] = { "text": "No text" }
-                    event['ocrStatus'] = False
-
-                matched_event.append(event)
-
+                event['ocrStatus'] = False                
+            matched_event.append(event)
         return
     
     def get_most_used_apps(
