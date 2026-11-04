@@ -515,6 +515,7 @@ class ServerAPI:
 
                 if response.status_code == 200:
                     response_data = json.loads(response.text)
+                    logger.debug(f"response data: {response_data}")
                     if response_data.get("code") == SUCCESSFUL_SYNC_STATUS:
                         self.db.update_server_sync_status(list_of_ids=event_ids, new_status=1)
                         self.db.save_settings("last_sync_time", datetime.now(timezone.utc).astimezone().isoformat())
@@ -1393,7 +1394,7 @@ class ServerAPI:
                             logger.warning("Failed to insert heartbeat")
                         else:
                             logger.debug(f"Inserted heartbeat with ID {heartbeat.id}")
-                        logger.info(f"heartbeat return data {heartbeat}")
+                        logger.debug(f"heartbeat return data {heartbeat}")
                         self.last_event[bucket_id] = heartbeat
                         logger.debug(f'===================================')
                         return heartbeat
@@ -1457,27 +1458,6 @@ class ServerAPI:
                 return 
         else:
             logger.debug(f"[{event.id} - {event.app}] doing ocr // {event_time}")
-
-        # Check isOcrTextEnabled
-        creds = credentials()
-
-        if not creds or not all((creds.get("userId"), creds.get("companyId"))):
-            return
-        
-        params = {
-            "userId": creds.get('userId'),
-            "companyId": creds.get('companyId'),
-        }         
-        try:   
-            response = (requests.get(SETTING_URL, params=params)).json()
-            res_data = response['data']
-            is_ocr_text_enable = res_data['isOcrTextEnabled']
-            if not is_ocr_text_enable:
-                logger.debug(f'ocr text is not enable')
-                return
-        except Exception as e:
-            logger.info(e)
-            return
 
         logger.debug(f'[ocr save image] event id => [{event.id} - {event.app}: "{event.title}"] duration: {event.duration.seconds}')
         
@@ -1668,6 +1648,16 @@ class ServerAPI:
 
         logger.debug(f'need to sync {event_sync_id}')
 
+        if not event_ids:
+            logger.debug("have no ocr text's screenshot event")
+            for event in events: #event from get_non_sync_event
+                # No screenshot is saved for OCR because isOcrTextEnabled is False
+                event['ocrText'] = { "text": "No text" }
+                event['ocrStatus'] = False
+
+                matched_event.append(event)            
+            return
+        
         for record in ocr_extraction:
 
             ocr_data = ""
