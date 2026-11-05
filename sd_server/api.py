@@ -1386,7 +1386,7 @@ class ServerAPI:
                         logger.debug(f'===================================')
                         return merged
                     else:
-                        logger.info(f"4. replace_last result //return heartbeat//")
+                        logger.debug(f"4. replace_last result //return heartbeat//")
                         heartbeat.id = None
                         heartbeat.duration = 0
                         heartbeat = self.db[bucket_id].insert(heartbeat)
@@ -1646,6 +1646,11 @@ class ServerAPI:
 
         for record in ocr_extraction:
 
+            query_result = self.db.get_event_by_id(record.event_id)
+            if query_result.server_sync_status != 0:
+                record.delete_instance()
+                logger.debug(f"[DEL] event id {record.event_id}'s server sync status is {query_result.server_sync_status}")
+
             if record.is_ocr_text_enabled:
 
                 try:
@@ -1659,7 +1664,7 @@ class ServerAPI:
                     ocr_data[record.event_id] += data 
                 except Exception as e:
                     logger.error(f"OCR JSON parse failed: {e}")
-                    ocr_data[record.event_id] = None
+                    ocr_data[record.event_id] = "text not found"
 
         return dict(ocr_data)
 
@@ -1670,7 +1675,7 @@ class ServerAPI:
         
         #get all ocr data
         ocr_datas = self._get_all_ocr_texts(ocr_extraction)
-        logger.info(f'ocr_datas=> {ocr_datas}')
+        logger.debug(f'ocr_datas=> {ocr_datas}')
 
         #append all event id 
         event_ids = [record.event_id for record in ocr_extraction]
@@ -1678,6 +1683,7 @@ class ServerAPI:
 
         matched_event = []
 
+        logger.debug(f"ocr text Event id: {event_ids}")
         logger.debug(f'need to sync {event_sync_id}')
 
         for event in events: #event from get_non_sync_event
@@ -1692,9 +1698,9 @@ class ServerAPI:
             else:
                 # No screenshot is saved for OCR because isOcrTextEnabled is False
                 event['ocrText'] = { "text": "No text" }
-                event['ocrStatus'] = False                
+                event['ocrStatus'] = False
             matched_event.append(event)
-        return
+        return matched_event
     
     def get_most_used_apps(
         self,
