@@ -1672,10 +1672,6 @@ class ServerAPI:
 
         #get all rows in screenshotmodel where is_event_screenshot = 1
         ocr_extraction = self.db.get_screenshot_record(1)
-        
-        #get all ocr data
-        ocr_datas = self._get_all_ocr_texts(ocr_extraction)
-        logger.debug(f'ocr_datas=> {ocr_datas}')
 
         #append all event id 
         event_ids = [record.event_id for record in ocr_extraction]
@@ -1685,6 +1681,11 @@ class ServerAPI:
 
         logger.debug(f"ocr text Event id: {event_ids}")
         logger.debug(f'need to sync {event_sync_id}')
+
+        #get all ocr data
+        waiting_mapping_ocr = [queue for queue in ocr_extraction if queue.event_id in event_sync_id]
+        ocr_datas = self._get_all_ocr_texts(waiting_mapping_ocr)
+        logger.debug(f'ocr_datas=> {ocr_datas}')
 
         for event in events: #event from get_non_sync_event
             event_id = event["id"]
