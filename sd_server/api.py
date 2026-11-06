@@ -490,7 +490,7 @@ class ServerAPI:
                                           companyId
                                           )
 
-                if DEVELOPMENT_MODE == 1:
+                if DEVELOPMENT_MODE == 0:
                     latest_event_timestamp = events[-1].get('timestamp')
                     running_path = get_running_path()
                     sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")
@@ -544,7 +544,7 @@ class ServerAPI:
 
                         logger.info(f"is_failed_event 1 => {is_failed_event}")
                         
-                        if DEVELOPMENT_MODE != 0:                                
+                        if DEVELOPMENT_MODE == 0:                                
                             threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                             threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
                             threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
@@ -1622,7 +1622,7 @@ class ScreenShotQueue(threading.Thread):
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
                                 server_url = "http://localhost:7600/screenshot/update_ocr_text"
                                 file_location = get_running_path()
-                                if DEVELOPMENT_MODE == 1:
+                                if DEVELOPMENT_MODE == 0:
                                     sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity.exe")
                                 else:
                                     tmp_path = file_location.split("sd-core")[0]
@@ -1653,7 +1653,7 @@ class ScreenShotQueue(threading.Thread):
                  
                             if pre_signed_url_response_code == REJECTED_SYNC_STATUS:
 
-                                if DEVELOPMENT_MODE != 0:                                    
+                                if DEVELOPMENT_MODE == 0:                                    
                                     threading.Thread(target=stop_process_by_exe, args=("sd-watcher-window.exe",)).start()
                                     threading.Thread(target=stop_process_by_exe, args=("sd-watcher-afk.exe",)).start()
                                     threading.Thread(target=stop_process_by_exe, args=("sd-pixel-engine.exe",)).start()
