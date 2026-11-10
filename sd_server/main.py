@@ -1,8 +1,9 @@
-import os 
-import logging
 import sys
+import logging
 
-import psutil
+import win32event
+import winerror
+import win32api
 
 from sd_core.log import setup_logging
 from sd_datastore import get_storage_methods
@@ -15,33 +16,23 @@ from .const import GITHUB_COMMIT_ID
 
 logger = logging.getLogger(__name__)
 
-def is_already_running() -> bool:
-    """Checks for another instance of the bundled .exe or script."""
-    current_pid = os.getpid()
-    
-    # If bundled by PyInstaller, sys.executable is the .exe path
-    # If running as script, sys.executable is python.exe (we use __file__ instead)
-    if getattr(sys, 'frozen', False):
-        current_name = os.path.basename(sys.executable)
-    else:
-        current_name = os.path.basename(__file__)
-    
-    try:
-        for proc in psutil.process_iter(['pid', 'name']):
-            # We filter for the name and ensure it's not THIS specific process
-            if proc.info['name'] and proc.info['name'].lower() == current_name.lower():
-                if proc.info['pid'] != current_pid:
-                    return True
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-        pass
-    return False
+_instance_mutex = None  # keep a module-level reference so the handle stays alive
 
+def acquire_single_instance() -> bool:
+    """Return True if we are the only instance, False if another is running."""
+    global _instance_mutex
+    _instance_mutex = win32event.CreateMutex(None, False, r"Local\SDServer_SingleInstance")
+    return win32api.GetLastError() != winerror.ERROR_ALREADY_EXISTS
 
 def main():
     """
      Entry point for sd - server. This is the main function called by the executable and __main__. py
     """
     """Called from the executable and __main__.py"""
+
+    if not acquire_single_instance():
+        logging.warning("Another instance is already running. Exiting.")
+        raise SystemExit(0)
 
     settings, storage_method = parse_settings()
 
@@ -70,20 +61,6 @@ def main():
         logger.info(f"Using custom_static: {settings.custom_static}")
     
     logger.info(f"GITHUB_COMMIT_ID = > {GITHUB_COMMIT_ID}")
-
-    # Check before initializing the watcher or logs
-    current_pid = os.getpid()
-    logger.info(f"current_pid = > {current_pid}")
-    if getattr(sys, 'frozen', False):
-        current_name = os.path.basename(sys.executable)
-    else:
-        current_name = os.path.basename(__file__)
-
-    logger.info(f"current_name = > {current_name}")
-    if is_already_running():
-        # Using stdout because logs aren't initialized yet
-        logger.info("Another instance server is already running. Closing this one.")
-        sys.exit(0)
 
     logger.info("Starting up...")
     _start(
