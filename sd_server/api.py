@@ -27,6 +27,8 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from tzlocal import get_localzone
 from zoneinfo import ZoneInfo
+import subprocess
+from glob import glob
 
 from sd_core.cache import (cache_user_credentials, clear_credentials, delete_password, add_password, store_credentials, get_credentials, credentials, keychain_item_exists)
 from sd_core.util import encrypt_uuid, load_key, is_internet_connected
@@ -49,7 +51,7 @@ from .exceptions import NotFound
 
 from sd_core.const import HOST_TO_UPLOAD_SHOT_GET, MAX_RETRIES, DELAY_SECONDS
 from sd_main.sd_desktop.monitor import start_exe_with_command
-import subprocess
+from sd_pixel_engine_event.const import EVENT_SCREENSHOT_FOLDER_USER
 
 os.environ.pop('HTTP_PROXY', None)
 os.environ.pop('HTTPS_PROXY', None)
@@ -486,6 +488,18 @@ class ServerAPI:
                 logger.warning("User ID or token is missing; unable to sync.")
                 return {"status": "missing_credentials"}
 
+            # Check is the current time in the schedule.
+            is_active_schedule = self.checks_active_schedule()
+
+            # if current time NOT in the schedule.
+            if not is_active_schedule:
+                # Delete all screenshots from the event screenshot folder
+                screenshot_event_folder_user = EVENT_SCREENSHOT_FOLDER_USER.format(user_id=userId)
+                screenshot_list = glob(os.path.join(screenshot_event_folder_user, "*.png"))
+
+                for screenshot_path in screenshot_list:
+                    Path(screenshot_path).unlink(missing_ok=True)
+                
             data = self.get_non_sync_events()
             if data.get("status") == "NoEvents":
                 return {"status": "NoEvents"}
@@ -1563,6 +1577,54 @@ class ServerAPI:
     
     def get_lastest_event(self):
         return self.db.get_lastest_event()
+
+    def checks_active_schedule(self):
+
+        # Retrieve the weekday schedule configured by the user in Sundial from the database
+        weekdays_schedule = self.get_settings('weekdays_schedule')
+
+        # Define the time and datetime formats
+        time_format = '%H:%M:%S'
+        date_format = '%y-%m-%d %H:%M:%S'
+
+        # Get the current UTC datetime and the full weekday name
+        dt = datetime.now(timezone.utc)
+        current_dt = dt.strftime(date_format)
+        current_day_name = dt.strftime('%A')
+
+        # Convert the datetime retrieved from the database to UTC
+        start_time = (
+            datetime.strptime(weekdays_schedule['starttime'], time_format)
+            .replace(year=dt.year, month=dt.month, day=dt.day)
+            .astimezone(tz=ZoneInfo('utc'))
+           .strftime(date_format)
+        )
+        end_time = (
+            datetime.strptime(weekdays_schedule['endtime'], time_format)
+            .replace(year=dt.year, month=dt.month, day=dt.day)
+            .astimezone(tz=ZoneInfo('utc'))
+           .strftime(date_format)
+        )
+
+        # Update the start and end times in weekdays_schedule without modifying the database
+        weekdays_schedule['starttime'] = start_time
+        weekdays_schedule['endtime'] = end_time
+
+        # validation
+            # is_active_day => Check whether today is a scheduled working day
+            # is_active_time_interval => Check whether the current time falls within the scheduled time interval
+        is_active_day = weekdays_schedule[current_day_name]
+        is_active_time_interval = (
+            True 
+            if (
+                (datetime.strptime(end_time, date_format) > datetime.strptime(current_dt, date_format)) 
+                and 
+                (datetime.strptime(start_time, date_format) < datetime.strptime(current_dt, date_format))
+            )
+            else False
+        )
+
+        return all([is_active_day, is_active_time_interval]) # If either condition is False, the current time is outside the schedule.
 
     def get_non_sync_events(self) -> List[Event]:
         events = self.db.get_non_sync_events()
