@@ -473,6 +473,8 @@ class ServerAPI:
 
     def sync_events_to_ralvie(self):
         try:
+            # Delete events older than the target number of days
+            self.db.delete_event_interval()
             userId = None
             # logger.info(f"User ID from load_key: {userId}")
             cached_credentials = get_credentials(CACHE_KEY)
