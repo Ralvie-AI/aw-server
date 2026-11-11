@@ -432,6 +432,38 @@ class ServerAPI:
         # logger.info(f"ocr_data => {ocr_data}")
         return ocr_data 
 
+    def is_within_schedule(self):
+    
+        settings = self.retrieve_all_settings()
+        # Extract the weekdays schedule
+        weekdays_schedule = settings.get("weekdays_schedule", {})
+        current_time = datetime.now()
+        day_name = current_time.strftime("%A").lower()
+        schedule = settings.get("schedule", False)
+
+        # if not schedule:
+        #     print(f"Skipping data capture: no schedule configured.")
+        #     return {"message": f"Skipping data capture: no schedule configured."}, 200
+
+        # Check if the current day is scheduled (True)
+        if not weekdays_schedule.get(day_name.capitalize(), False) and schedule:
+            print(f"Skipping data capture for {day_name} - not scheduled.")
+            return False 
+        return True
+    
+
+    def run_eventscreenshot_cleaner(self, latest_event_timestamp, userId, companyId, is_event):
+        if DEVELOPMENT_MODE == 0:
+            running_path = get_running_path()
+            sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")
+            cmd = [sd_eventscreenshot_cleaner, 
+                    str(userId), 
+                    str(companyId),  
+                    str(latest_event_timestamp),
+                    str(is_event)
+                    ]
+            start_exe(cmd)
+
     def sync_events_to_ralvie(self):
 
         try:      
@@ -454,11 +486,21 @@ class ServerAPI:
 
             data = self.get_non_sync_events()
             if data.get("status") == "NoEvents":
+
+                if not self.is_within_schedule(): 
+                    result = self.db.get_last_event_timestamp()
+                    logger.info(f"result = {result}")
+                    logger.info(f"result type = {type(result)}")
+                    if result is not None:
+                        self.run_eventscreenshot_cleaner(result, userId, companyId, "no")
+                    logger.info(f"no schedule")
+
                 return {"status": "NoEvents"}
             
             events = data.get("events", [])
             if events:
-
+                logger.info(f"events => {events}")
+                logger.info(f"len => {len(events)}")
                 if len(events) == 1:
                     current_now = datetime.now(timezone.utc)
                     # logger.info(f"current_now {current_now}")
@@ -490,16 +532,7 @@ class ServerAPI:
                                           companyId
                                           )
 
-                if DEVELOPMENT_MODE == 0:
-                    latest_event_timestamp = events[-1].get('timestamp')
-                    running_path = get_running_path()
-                    sd_eventscreenshot_cleaner = os.path.join(running_path, "sd-eventscreenshot-cleaner.exe")
-                    cmd = [sd_eventscreenshot_cleaner, 
-                            str(userId), 
-                            str(companyId),  
-                            str(latest_event_timestamp)
-                            ]
-                    start_exe(cmd)
+                self.run_eventscreenshot_cleaner(events[-1].get('timestamp'), userId, companyId, "yes")
 
                 ocr_event_results = self.db.get_event_ocr_text(event_ids)
                 ocr_event_dict = {}
