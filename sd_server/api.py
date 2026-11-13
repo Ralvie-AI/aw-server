@@ -1495,10 +1495,15 @@ class ServerAPI:
         screenshot_path, screenshot_time = get_image(event_start_time, event_end_time, user_id, event_id)
 
         if screenshot_path is None:
-            if event.app == 'afk':
-                screenshot_path = 'Screen is locked.'
-                screenshot_time = event_end_time
-                logger.debug(f'event id: {event_id}, Screen is locked.')
+            if event.app == 'afk': 
+                if self.is_ocr_text_enable():
+                    screenshot_path = 'Screen is locked.'
+                    screenshot_time = event_end_time
+                    logger.debug(f'event id: {event_id}, Screen is locked.')
+                else:
+                    screenshot_path = '~/afk/ocr/text/not/enable'
+                    screenshot_time = event_end_time
+                    logger.debug(f'event id: {event_id}, Screen is locked.')
             else:
                 logger.debug('image not found')
                 return
@@ -1517,6 +1522,34 @@ class ServerAPI:
             logger.info(f'ocr save image payload: {payload}')
         response = requests.post("http://localhost:7600/ocr_event/", json=payload)
         response.raise_for_status()
+
+    def is_ocr_text_enable(self) -> bool | None:
+
+        """ 
+            Check whether isOcrTextEnabled is enabled, 
+            in case the user is AFK and the screen is locked.
+        """
+
+        # Check isOcrTextEnabled
+        creds = credentials()
+
+        if not creds or not all((creds.get("userId"), creds.get("companyId"))):
+            return
+
+        params = {
+            "userId": creds.get('userId'),
+            "companyId": creds.get('companyId'),
+        }         
+        try:   
+            response = (requests.get(SETTING_URL, params=params)).json()
+            logger.info('check is_ocr_text_enable')
+            res_data = response['data']
+            ocr_status = res_data['isOcrTextEnabled']
+        except Exception as e:
+            logger.info(e)
+            return None
+        else:
+            return ocr_status
 
 
     def query2(self, name, query, timeperiods, cache):
@@ -1747,7 +1780,8 @@ class ServerAPI:
         logger.debug(f'need to sync {event_sync_id}')
 
         #get all ocr data
-        waiting_mapping_ocr = [queue for queue in ocr_extraction if queue.event_id in event_sync_id]
+        #waiting_mapping_ocr = [queue for queue in ocr_extraction if queue.event_id in event_sync_id]
+        waiting_mapping_ocr = [queue for queue in ocr_extraction]
         ocr_datas = self._get_all_ocr_texts(waiting_mapping_ocr)
         logger.debug(f'ocr_datas=> {ocr_datas}')
 
