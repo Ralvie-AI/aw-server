@@ -13,11 +13,12 @@ from flask import (
 import psutil
 from playhouse.shortcuts import model_to_dict
 
+from sd_core import db_cache
 from sd_core.const import PUBLIC_KEY
 from sd_core.cache import credentials
 from sd_core.system_uuid import get_uuid_address
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm, validate_public_key_file
-
+from sd_core.const import SETTINGS_CACHE_KEY
 
 ALLOWED_PROCESSES = {
     "sd-pixel-engine.exe",
@@ -240,3 +241,46 @@ def create_event_screenshot():
         'received_data': json_data,
         'screenshot_id': screenshot_id
     }), 201
+
+
+@blueprint.route('/schedule/settings', methods=['GET'])
+def get_schedule_settings():
+
+    # Retrieve settings
+    settings = db_cache.retrieve(SETTINGS_CACHE_KEY)
+    if not settings:
+        settings = current_app.api.retrieve_all_settings()
+        db_cache.store(SETTINGS_CACHE_KEY, settings)
+
+    # Extract the weekdays schedule
+    weekdays_schedule = settings.get("weekdays_schedule", {})
+    current_time = datetime.now()
+    day_name = current_time.strftime("%A").lower()
+    schedule = settings.get("schedule", False)
+
+    if not weekdays_schedule.get(day_name.capitalize(), False) and schedule:        
+        logger.info(f"Skipping data capture for {day_name} - not scheduled.")
+        return {"schedule": False}, 200
+
+    # Time range check for scheduling
+    start_time_str = weekdays_schedule.get("starttime")
+    end_time_str = weekdays_schedule.get("endtime")
+
+    if start_time_str and end_time_str and schedule:
+        try:
+            time_format = "%H:%M:%S"
+            local_start_time = datetime.strptime(f"{current_time.date()} {start_time_str}",
+                                                    f"%Y-%m-%d {time_format}")
+            local_end_time = datetime.strptime(f"{current_time.date()} {end_time_str}", f"%Y-%m-%d {time_format}")
+        
+            # Check if the current time is within the scheduled range
+            if not (local_start_time <= current_time < local_end_time):
+                logger.info(f"Skipping data capture due to time restriction. Current time: {current_time}, "
+                        f"Scheduled start: {local_start_time}, Scheduled end: {local_end_time}.")
+                return {"schedule": False}, 200
+
+        except (ValueError, json.JSONDecodeError) as e:
+            logger.error(f"Error parsing schedule: {e}")
+            return {"schedule": False}, 200
+
+    return {"schedule": True}, 200

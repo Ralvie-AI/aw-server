@@ -422,6 +422,9 @@ class ServerAPI:
 
     def extract_ocr_text(self, ocr_event_text):                        
         ocr_data = ""
+        # logger.info(f"ocr_event_text => {ocr_event_text}")
+        # logger.info(f"ocr_event_text len => {len(ocr_event_text)}")
+        # logger.info(f"ocr_event_text type => {type(ocr_event_text)}")
         if ocr_event_text:
             ocr_text_json = json.loads(ocr_event_text) 
             ocr_data = "\\n".join(
@@ -430,6 +433,8 @@ class ServerAPI:
                     if len(item['text']) > 1 and len(item['text'].strip()) > 1
                 )
         # logger.info(f"ocr_data => {ocr_data}")
+        # logger.info(f"ocr_data type => {type(ocr_data)}")
+        # logger.info(f"ocr_data len => {len(ocr_data)}")
         return ocr_data 
 
     def is_within_schedule(self):
@@ -447,8 +452,31 @@ class ServerAPI:
 
         # Check if the current day is scheduled (True)
         if not weekdays_schedule.get(day_name.capitalize(), False) and schedule:
-            print(f"Skipping data capture for {day_name} - not scheduled.")
+            logger.info(f"Skipping data capture for {day_name} - not scheduled.")
             return False 
+
+        # Time range check for scheduling
+        start_time_str = weekdays_schedule.get("starttime")
+        end_time_str = weekdays_schedule.get("endtime")
+
+        if start_time_str and end_time_str and schedule:
+            try:
+                time_format = "%H:%M:%S"
+                local_start_time = datetime.strptime(f"{current_time.date()} {start_time_str}",
+                                                        f"%Y-%m-%d {time_format}")
+                local_end_time = datetime.strptime(f"{current_time.date()} {end_time_str}", f"%Y-%m-%d {time_format}")
+
+                
+                # Check if the current time is within the scheduled range
+                if not (local_start_time <= current_time < local_end_time):
+                    logger.info(f"Skipping data capture due to time restriction. Current time: {current_time}, "
+                            f"Scheduled start: {local_start_time}, Scheduled end: {local_end_time}.")
+                    return False
+
+            except (ValueError, json.JSONDecodeError) as e:
+                logger.error(f"Error parsing schedule: {e}")
+                return False
+            
         return True
     
 
