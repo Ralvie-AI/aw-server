@@ -49,7 +49,7 @@ from sd_core.log import setup_logging
 from .__about__ import __version__
 from .exceptions import NotFound
 
-from sd_core.const import HOST_TO_UPLOAD_SHOT_GET, MAX_RETRIES, DELAY_SECONDS
+from sd_core.const import HOST_TO_UPLOAD_SHOT_GET, MAX_RETRIES, DELAY_SECONDS, BASE_URL
 from sd_main.sd_desktop.monitor import start_exe_with_command
 from sd_pixel_engine_event.const import EVENT_SCREENSHOT_FOLDER_USER
 
@@ -1520,7 +1520,7 @@ class ServerAPI:
 
         if STAGING == 1:
             logger.info(f'ocr save image payload: {payload}')
-        response = requests.post("http://localhost:7600/ocr_event/", json=payload)
+        response = requests.post(f"{BASE_URL}ocr_event/", json=payload)
         response.raise_for_status()
 
     def is_ocr_text_enable(self) -> bool | None:
@@ -1771,8 +1771,8 @@ class ServerAPI:
         ocr_extraction = self.db.get_screenshot_record(1)
 
         #append all event id 
-        event_ids = [record.event_id for record in ocr_extraction]
         event_sync_id = [event["event_id"] for event in events]
+        event_ids = [record.event_id for record in ocr_extraction if record.event_id in event_sync_id]
 
         matched_event = []
 
@@ -1780,7 +1780,6 @@ class ServerAPI:
         logger.debug(f'need to sync {event_sync_id}')
 
         #get all ocr data
-        #waiting_mapping_ocr = [queue for queue in ocr_extraction if queue.event_id in event_sync_id]
         waiting_mapping_ocr = [queue for queue in ocr_extraction]
         ocr_datas = self._get_all_ocr_texts(waiting_mapping_ocr)
         logger.debug(f'ocr_datas=> {ocr_datas}')
