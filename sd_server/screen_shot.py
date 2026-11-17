@@ -14,7 +14,7 @@ import psutil
 from playhouse.shortcuts import model_to_dict
 
 from sd_core import db_cache
-from sd_core.const import PUBLIC_KEY
+from sd_core.const import PUBLIC_KEY, LOGGING_VERBOSE
 from sd_core.cache import credentials
 from sd_core.system_uuid import get_uuid_address
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm, validate_public_key_file
@@ -258,8 +258,9 @@ def get_schedule_settings():
     day_name = current_time.strftime("%A").lower()
     schedule = settings.get("schedule", False)
 
-    if not weekdays_schedule.get(day_name.capitalize(), False) and schedule:        
-        logger.info(f"Skipping data capture for {day_name} - not scheduled.")
+    if not weekdays_schedule.get(day_name.capitalize(), False) and schedule:
+        if LOGGING_VERBOSE == 1:
+            logger.info(f"Skipping data capture for {day_name} - not scheduled.")
         return {"schedule": False}, 200
 
     # Time range check for scheduling
@@ -275,7 +276,8 @@ def get_schedule_settings():
         
             # Check if the current time is within the scheduled range
             if not (local_start_time <= current_time < local_end_time):
-                logger.info(f"Skipping data capture due to time restriction. Current time: {current_time}, "
+                if LOGGING_VERBOSE == 1:
+                    logger.info(f"Skipping data capture due to time restriction. Current time: {current_time}, "
                         f"Scheduled start: {local_start_time}, Scheduled end: {local_end_time}.")
                 return {"schedule": False}, 200
 

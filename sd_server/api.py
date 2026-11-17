@@ -452,7 +452,8 @@ class ServerAPI:
 
         # Check if the current day is scheduled (True)
         if not weekdays_schedule.get(day_name.capitalize(), False) and schedule:
-            logger.info(f"Skipping data capture for {day_name} - not scheduled.")
+            if LOGGING_VERBOSE == 1:
+                logger.info(f"Skipping data capture for {day_name} - not scheduled.")
             return False 
 
         # Time range check for scheduling
@@ -469,7 +470,8 @@ class ServerAPI:
                 
                 # Check if the current time is within the scheduled range
                 if not (local_start_time <= current_time < local_end_time):
-                    logger.info(f"Skipping data capture due to time restriction. Current time: {current_time}, "
+                    if LOGGING_VERBOSE == 1:
+                        logger.info(f"Skipping data capture due to time restriction. Current time: {current_time}, "
                             f"Scheduled start: {local_start_time}, Scheduled end: {local_end_time}.")
                     return False
 
