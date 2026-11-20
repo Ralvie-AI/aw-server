@@ -1721,7 +1721,7 @@ class ServerAPI:
         logger.debug(f'need to sync {event_sync_id}')
 
         #get all ocr data
-        waiting_mapping_ocr = [queue for queue in ocr_extraction]
+        waiting_mapping_ocr = [record for record in ocr_extraction if record.event_id in event_sync_id]
         ocr_datas = self._get_all_ocr_texts(waiting_mapping_ocr)
         logger.debug(f'ocr_datas=> {ocr_datas}')
 
