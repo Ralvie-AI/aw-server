@@ -791,7 +791,58 @@ class ServerAPI:
             
         except Exception as e:            
             logger.error(f"Error during sync screenshot to ralvie: {e}")
-            return uploaded_success                    
+            return uploaded_success     
+
+    def complete_browser_auth(self, response_body: Dict[str, Any]) -> None:
+        """
+        Validate the RCI0000 exchange payload, encrypt & store SD_KEYS in the
+        system keyring, initialize the database, and wake background sync queues.
+        """
+        if not isinstance(response_body, dict) or response_body.get("code") != SUCCESSFUL_SYNC_STATUS:
+            code = response_body.get("code", "UNKNOWN") if isinstance(response_body, dict) else "INVALID"
+            msg = response_body.get("message", "Unexpected response") if isinstance(response_body, dict) else "Invalid payload"
+            raise ValueError(f"Authentication rejected ({code}): {msg}")
+
+        data = response_body.get("data") or {}
+        credentials_data = data.get("credentials") or {}
+        user_data = data.get("user") or {}
+
+        db_key = credentials_data.get("dbKey")
+        data_encryption_key = credentials_data.get("dataEncryptionKey")
+        user_key = credentials_data.get("userKey")
+        user_id = user_data.get("id")
+
+        if not all([db_key, data_encryption_key, user_key, user_id]):
+            raise ValueError("Missing required credentials or user ID in exchange response.")
+
+        encrypted_db_key = encrypt_uuid(db_key, user_key)
+        encrypted_data_encryption_key = encrypt_uuid(data_encryption_key, user_key)
+
+        sd_keys = {
+            "user_key": user_key,
+            "encrypted_db_key": encrypted_db_key,
+            "encrypted_data_encryption_key": encrypted_data_encryption_key,
+            "email": user_data.get("email"),
+            "phone": user_data.get("phone"),
+            "firstname": user_data.get("firstName"),
+            "userId": user_id,
+            "token": credentials_data.get("token", ""),
+            "companyId": user_data.get("companyId"),
+            "companyName": user_data.get("companyName"),
+            "Authenticated": True,
+        }
+
+        add_password(CACHE_KEY, sd_keys)
+        self.last_event = {}
+
+        if not self.init_db():
+            raise RuntimeError("Failed to initialize database after authentication.")
+
+        # Immediately mark background queues ready without waiting for reconnect sleep
+        if self.ralvie_server_queue is not None:
+            self.ralvie_server_queue._try_connect()
+        if self.screen_shot_queue is not None:
+            self.screen_shot_queue._try_connect()               
 
     def get_user_credentials(self, userId, token):
         """
