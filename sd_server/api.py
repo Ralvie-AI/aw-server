@@ -41,6 +41,7 @@ from sd_core.util import (
     start_exe, 
     convert_datetime_string,
     run_event_ocr_exe,
+    create_ephemeral_hs256_jwt
     )
 from sd_core.const import (
     CACHE_KEY, 
@@ -826,7 +827,7 @@ class ServerAPI:
             "phone": user_data.get("phone"),
             "firstname": user_data.get("firstName"),
             "userId": user_id,
-            "token": credentials_data.get("token", ""),
+            "token": create_ephemeral_hs256_jwt(),
             "companyId": user_data.get("companyId"),
             "companyName": user_data.get("companyName"),
             "Authenticated": True,
