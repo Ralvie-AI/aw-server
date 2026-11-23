@@ -40,6 +40,7 @@ from sd_core.models import Event
 from sd_core.cache import credentials, clear_all_credentials
 from sd_query.exceptions import QueryException
 from sd_core.os_util import is_windows
+from sd_core.system_uuid import get_uuid_address
 from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
@@ -47,9 +48,10 @@ from .exceptions import BadRequest, Unauthorized
 
 ALLOWED_CLIENT_PROCESSES = {"sd-main.exe", "sd-main", "python.exe"}
 
-REMOTE_EXCHANGE_URL = os.environ.get(
-    "REMOTE_EXCHANGE_URL", "http://localhost:8080/auth/exchange/"
-)
+REMOTE_EXCHANGE_URL = "https://ralvie.minervaiotstaging.com/auth/login/"
+# REMOTE_EXCHANGE_URL = "http://localhost:8080/auth/exchange/"
+
+
 AUTH_SESSION_TTL_S = 180
 
 def get_client_process(client_ip: str, client_port: int):
@@ -294,9 +296,8 @@ class _AuthSessionStore:
             self._expires_at = time.time() + AUTH_SESSION_TTL_S
 
         return {
-            "local_code": local_code,
+            "state": local_code,
             "code_challenge": code_challenge,
-            "code_challenge_method": "S256",
             "redirect_uri": redirect_uri,
         }
 
@@ -406,8 +407,8 @@ class AuthStartResource(Resource):
 @api.route("/0/auth/callback", doc=False)
 class AuthCallbackResource(Resource):
     def get(self):
-        returned_local_code = request.args.get("local_code", "")
-        server_code = request.args.get("server_code", "")
+        returned_local_code = request.args.get("state", "")
+        server_code = request.args.get("code", "")
         remote_error = request.args.get("error")
 
         if remote_error:
@@ -423,23 +424,25 @@ class AuthCallbackResource(Resource):
             msg = "Missing authorization code from server."
             _auth_store.mark_error(msg)
             return _render_callback_html("Authentication Failed", msg, 400)
-
+        sundial_uuid = get_uuid_address(server_code)
         try:
             with requests.Session() as session:
                 session.trust_env = False
                 resp = session.post(
                     REMOTE_EXCHANGE_URL,
                     json={
-                        "server_code": server_code,
-                        "local_code": returned_local_code,
-                        "redirect_uri": redirect_uri,
+                        "code": server_code,
                         "code_verifier": code_verifier,
+                        "sundial_uuid": sundial_uuid,
+                    },
+                    headers={
+                        "Content-Type": "application/json",      
                     },
                     timeout=5,
                 )
+            
             resp.raise_for_status()
             body = resp.json()
-
             reset_user()
             current_app.api.complete_browser_auth(body)
         except requests.HTTPError as exc:
