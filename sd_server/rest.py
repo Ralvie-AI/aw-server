@@ -5,7 +5,10 @@ import traceback
 from functools import wraps
 from threading import Lock
 from typing import Dict
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta, date
+import time
+from typing import Dict, Optional
+import platform
 
 import iso8601
 import pytz
@@ -18,8 +21,13 @@ from flask import (
     make_response,
     request,
     abort,
+    render_template_string,
 )
 import subprocess
+import hashlib
+import base64
+import requests
+import secrets
 
 from sd_core.launch_start import delete_launch_app, launch_app, check_startup_status, set_autostart_registry
 from sd_core.util import authenticate, is_internet_connected, reset_user
@@ -31,13 +39,21 @@ from . import logger
 from .api import ServerAPI
 from .exceptions import BadRequest, Unauthorized
 from sd_main.manager import Manager
+from sd_server.utils import get_uuid_address
+from sd_server.const import PROTOCOL, HOST
 
 from sd_core.const import CACHE_KEY as cache_key
 
 application_cache_key = "application_cache"
 manager = Manager()
 
-ALLOWED_CLIENT_PROCESSES = {"sd-main.exe", "sd-main"}
+ALLOWED_CLIENT_PROCESSES = {"sd-main.exe", "sd-main", "python3.1"}
+AUTH_SESSION_TTL_S = 180
+
+REMOTE_EXCHANGE_URL = f"{PROTOCOL}://{HOST}/api/v1/sundial/auth/validate-code"
+# REMOTE_EXCHANGE_URL = "http://127.0.0.1:5000/auth/validate-code/"
+# REMOTE_EXCHANGE_URL = "http://10.100.34.56:8080/auth/exchange/"
+
 
 def get_client_process(client_ip: str, client_port: int) -> list | None:
 
@@ -510,6 +526,213 @@ class RalvieLoginResource(Resource):
             return {"code": json.loads(auth_result.text)["code"], "message": json.loads(auth_result.text)["message"],
                     "data": json.loads(auth_result.text)["data"], "userId": user_id}, 200
 
+############ brower login ############
+
+class _AuthSessionStore:
+    """Thread-safe state machine for the desktop OAuth + PKCE handshake."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._status = "idle"  # "idle" | "pending" | "authenticated" | "error"
+        self._error: Optional[str] = None
+        self._local_code: Optional[str] = None
+        self._code_verifier: Optional[str] = None
+        self._redirect_uri: Optional[str] = None
+        self._expires_at: float = 0.0
+
+    def start(self, redirect_uri: str) -> dict:
+        local_code = secrets.token_hex(32)
+        code_verifier = secrets.token_urlsafe(64)
+        digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+        code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+        with self._lock:
+            self._status = "pending"
+            self._error = None
+            self._local_code = local_code
+            self._code_verifier = code_verifier
+            self._redirect_uri = redirect_uri
+            self._expires_at = time.time() + AUTH_SESSION_TTL_S
+
+        return {
+            "state": local_code,
+            "code_challenge": code_challenge,
+            "redirect_uri": redirect_uri,
+        }
+
+    def consume_for_callback(self, returned_local_code: str):
+        with self._lock:
+            expected_code = self._local_code
+            code_verifier = self._code_verifier
+            redirect_uri = self._redirect_uri
+            expired = time.time() > self._expires_at
+
+            self._local_code = None
+            self._code_verifier = None
+
+            if not expected_code or not code_verifier or expired:
+                self._status = "error"
+                self._error = "Login session expired. Please return to the app and try again."
+                return None, None, self._error
+
+            if not secrets.compare_digest(returned_local_code, expected_code):
+                self._status = "error"
+                self._error = "Invalid session state (local_code mismatch)."
+                return None, None, self._error
+
+            return code_verifier, redirect_uri, None
+
+    def mark_authenticated(self) -> None:
+        with self._lock:
+            self._status = "authenticated"
+            self._error = None
+
+    def mark_error(self, message: str) -> None:
+        with self._lock:
+            self._status = "error"
+            self._error = message
+            self._local_code = None
+            self._code_verifier = None
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {
+                "status": self._status,
+                "authenticated": self._status == "authenticated",
+                "error": self._error,
+            }
+
+
+_auth_store = _AuthSessionStore()
+
+_CALLBACK_HTML = """<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <style>
+      body { font-family: system-ui, -apple-system, sans-serif; text-align: center; padding-top: 14vh; color: #1f2328; }
+      .card { display: inline-block; padding: 2rem 2.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+      h2 { margin: 0 0 0.5rem; color: {{ '#1D0B77' if success else '#d93025' }}; }
+      p { margin: 0; color: #57606a; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>{{ title }}</h2>
+      <p>{{ message }}</p>
+    </div>
+    {% if success %}
+    <script>setTimeout(() => window.close(), 1500);</script>
+    {% endif %}
+  </body>
+</html>"""
+
+
+def _render_callback_html(title: str, message: str, status_code: int, success: bool = False):
+    html = render_template_string(
+        _CALLBACK_HTML, title=title, message=message, success=success
+    )
+    resp = make_response(html, status_code)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    return resp
+
+
+@api.route("/0/auth/start", doc=False)
+class AuthStartResource(Resource):
+    def get(self):
+        client_ip = request.remote_addr
+        client_port = request.environ.get("REMOTE_PORT")
+        if client_ip not in ("127.0.0.1", "::1") or not client_port:
+            abort(403, "Access restricted to local host.")
+
+        
+        proc = get_client_process(client_ip, int(client_port))
+        if not proc:
+            abort(403, "Could not resolve origin process.")
+
+        for proc_name in proc:
+
+            if proc_name.lower() not in [p.lower() for p in ALLOWED_CLIENT_PROCESSES]:
+                abort(403, f"Unauthorized caller: {proc_name.lower()}")
+
+        redirect_uri = f"{request.host_url.rstrip('/')}/api/0/auth/callback"
+        return _auth_store.start(redirect_uri), 200
+
+
+@api.route("/0/auth/callback", doc=False)
+class AuthCallbackResource(Resource):
+    def get(self):
+        returned_local_code = request.args.get("state", "")
+        server_code = request.args.get("code", "")
+        remote_error = request.args.get("error")
+
+        if remote_error:
+            msg = f"Sign-in was cancelled or denied ({remote_error})."
+            _auth_store.mark_error(msg)
+            return _render_callback_html("Sign-in Cancelled", msg, 400)
+
+        code_verifier, redirect_uri, err = _auth_store.consume_for_callback(returned_local_code)
+        if err:
+            return _render_callback_html("Authentication Failed", err, 400)
+
+        if not server_code:
+            msg = "Missing authorization code from server."
+            _auth_store.mark_error(msg)
+            return _render_callback_html("Authentication Failed", msg, 400)
+
+        sundial_uuid = get_uuid_address(server_code)
+        print()
+        try:
+            with requests.Session() as session:
+                session.trust_env = False
+                resp = session.post(
+                    REMOTE_EXCHANGE_URL,
+                    json={
+                        "code": server_code,
+                        "code_verifier": code_verifier,
+                        "sundial_uuid": sundial_uuid,
+                    },
+                    headers={
+                        "Content-Type": "application/json",      
+                    },
+                    timeout=5,
+                )
+            
+            resp.raise_for_status()
+            body = resp.json()
+            reset_user()
+            current_app.api.complete_browser_auth(body)
+        except requests.HTTPError as exc:
+            code = exc.response.status_code if exc.response is not None else "unknown"
+            msg = f"Remote server rejected sign-in (HTTP {code})."
+            _auth_store.mark_error(msg)
+            return _render_callback_html("Authentication Failed", msg, 502)
+        except requests.RequestException:
+            msg = "Could not reach the remote authentication server."
+            _auth_store.mark_error(msg)
+            return _render_callback_html("Connection Error", msg, 502)
+        except Exception as exc:
+            logger.exception("Browser auth completion failed")
+            reset_user()
+            msg = str(exc)
+            _auth_store.mark_error(msg)
+            return _render_callback_html("Setup Error", msg, 500)
+
+        _auth_store.mark_authenticated()
+        return _render_callback_html(
+            "You're signed in",
+            "You can close this tab and return to the application.",
+            200,
+            success=True,
+        )
+
+
+@api.route("/0/auth/status", doc=False)
+class AuthStatusResource(Resource):
+    def get(self):
+        return _auth_store.snapshot(), 200
+    
 
 # BUCKETS
 
