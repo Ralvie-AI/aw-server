@@ -21,6 +21,7 @@ else:
  ##### RESPONSE CODE FROM RALVIE SERVER #####
 SUCCESSFUL_SYNC_STATUS = "RCI0000" # store the events successful in server side
 REJECTED_SYNC_STATUS = "RCE0219" # server rejected these events
+SUCCESS_RESPONSE_CODE = '00000000'
 
 LOCAL_SERVER = 0
 if LOCAL_SERVER == 1:

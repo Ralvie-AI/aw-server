@@ -31,14 +31,14 @@ import subprocess
 from glob import glob
 
 from sd_core.cache import (cache_user_credentials, clear_credentials, delete_password, add_password, store_credentials, get_credentials, credentials, keychain_item_exists)
-from sd_core.util import encrypt_uuid, load_key, is_internet_connected
+from sd_core.util import encrypt_uuid, load_key, is_internet_connected, create_ephemeral_hs256_jwt
 from sd_core.dirs import get_data_dir
 from sd_core.log import get_log_file_path
 from sd_core.models import Event
 from sd_query import query2
 from sd_transform import heartbeat_merge
 from sd_server.utils import get_uuid_address, send_to_gui, convert_datetime_string, convert_to_local_datetime_string
-from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION, PUBLIC_KEY, STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME, STAGING
+from sd_server.const import PROTOCOL, HOST, CACHE_KEY, SUCCESSFUL_SYNC_STATUS, REJECTED_SYNC_STATUS, SYNC_TIME, VERSION_DISPLAY, SCREEN_SHOT_TIME, TMP_VERSION, PUBLIC_KEY, STATUS_SYNC_TIME, STATUS_SYNC_FIRST_TIME, STAGING, SUCCESS_RESPONSE_CODE
 from sd_server.ocr_active import ActiveWindowOCRText
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
 from sd_main.sd_desktop.util import (credentials)
@@ -864,6 +864,70 @@ class ServerAPI:
         except Exception as e:            
             logger.error(f"Error during sync status to ralvie: {e}")
             return {"status": "error_occurred", "message": str(e)}       
+
+    def complete_browser_auth(self, response_body: Dict[str, Any]) -> None:
+        """
+        Validate the RCI0000 exchange payload, encrypt & store SD_KEYS in the
+        system keyring, initialize the database, and wake background sync queues.
+        """
+        # if not isinstance(response_body, dict) or response_body.get("code") != SUCCESS_RESPONSE_CODE:
+        if not isinstance(response_body, dict) or response_body.get("code") != SUCCESSFUL_SYNC_STATUS:
+            code = response_body.get("code", "UNKNOWN") if isinstance(response_body, dict) else "INVALID"
+            msg = response_body.get("message", "Unexpected response") if isinstance(response_body, dict) else "Invalid payload"
+            raise ValueError(f"Authentication rejected ({code}): {msg}")
+
+        data = response_body.get("data") or {}
+        credentials_data = data.get("credentials") or {}
+        user_data = data.get("user") or {}
+
+        db_key = credentials_data.get("dbKey")
+        data_encryption_key = credentials_data.get("dataEncryptionKey")
+        user_key = credentials_data.get("userKey")
+        user_id = user_data.get("id")
+
+        if not all([db_key, data_encryption_key, user_key, user_id]):
+            raise ValueError("Missing required credentials or user ID in exchange response.")
+
+        encrypted_db_key = encrypt_uuid(db_key, user_key)
+        encrypted_data_encryption_key = encrypt_uuid(data_encryption_key, user_key)
+
+        sd_keys = {
+            "user_key": user_key,
+            "encrypted_db_key": encrypted_db_key,
+            "encrypted_data_encryption_key": encrypted_data_encryption_key,
+            "email": user_data.get("email"),
+            "phone": user_data.get("phone"),
+            "firstname": user_data.get("firstName"),
+            "userId": user_id,
+            "token": create_ephemeral_hs256_jwt(),
+            "companyId": user_data.get("companyId"),
+            "companyName": user_data.get("companyName"),
+            "Authenticated": True,
+            "version": VERSION_DISPLAY,
+            'Sundial': True
+        }
+
+        # Update the cache first
+        store_credentials(CACHE_KEY, sd_keys)
+        # Serialize the data and update the secure storage
+        serialized_data = json.dumps(sd_keys)
+        status = add_password(CACHE_KEY, serialized_data)
+        print(f'status: {status}')
+        # Retrieve the cached credentials to confirm they were updated
+        cached_credentials = get_credentials(CACHE_KEY)
+        if cached_credentials:
+            key_decoded = cached_credentials.get("user_key")
+            self.last_event = {}
+
+        if not self.init_db():
+            raise RuntimeError("Failed to initialize database after authentication.")
+
+        # Immediately mark background queues ready without waiting for reconnect sleep
+        # run
+        if self.ralvie_server_queue is not None:
+            self.ralvie_server_queue._try_connect()
+        if self.screen_shot_queue is not None:
+            self.screen_shot_queue._try_connect() 
 
     def get_user_credentials(self, userId, token):
         """
