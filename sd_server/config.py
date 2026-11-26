@@ -4,7 +4,7 @@ from sd_core.config import load_config_toml
 default_config = """
 [server]
 host = "localhost"
-port = "7600"
+port = "0"
 storage = "peewee"
 cors_origins = "http://localhost:27180,http://localhost:3000,http://localhost:3001,http://localhost:7600"
 

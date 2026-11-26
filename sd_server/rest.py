@@ -46,7 +46,8 @@ from .auth_session import (
 ALLOWED_CLIENT_PROCESSES = {"sd-main.exe", "sd-main", "python.exe"}
 
 # REMOTE_EXCHANGE_URL = "https://ralvie.minervaiotstaging.com/auth/login/"
-REMOTE_EXCHANGE_URL = "http://10.100.34.56:8080/auth/exchange/"
+# REMOTE_EXCHANGE_URL = "http://10.100.34.56:8080/auth/exchange/"
+REMOTE_EXCHANGE_URL = "http://localhost:8080/auth/exchange/"
 
 def get_client_process(client_ip: str, client_port: int):
   """Find the process that owns the incoming local TCP connection."""
@@ -1148,14 +1149,6 @@ class RalvieTokenRefreshResource(Resource):
 class server_status(Resource):
     def get(self):
         return 200
-
-@api.route("/0/lottie_js")
-class LottieJs(Resource):    
-
-    def get(self):
-        if LOGGING_VERBOSE == 1:
-            logger.info(f"api.blueprint_setup.app.static_folder: {api.blueprint_setup.app.static_folder}")
-        return send_from_directory(api.blueprint_setup.app.static_folder, "js/lottie.min.js")
 
 @api.route("/0/clear_server_cache", doc=False)
 class ClearServerCache(Resource):

@@ -68,7 +68,7 @@ from sd_server.const import (
     REMOTE_HOST,
     )
 from sd_server.encrypt_image_aes_gcm import encrypt_image_to_json_gcm
-
+from sd_core.server_discovery import get_active_server_url
 
 from .__about__ import __version__
 from .exceptions import NotFound
@@ -554,14 +554,17 @@ class ServerAPI:
                 ocr_event_results = self.db.get_event_ocr_text(event_ids)
     
                 if len(ocr_event_results) == 0:
+                    screenshot_url = f"{get_active_server_url()}/screenshot/"
                     for ocr_event in events:
 
-                        run_event_ocr_exe(ocr_event.get("event_id"), 
-                                          ocr_event.get("timestamp"), 
-                                          ocr_event.get("duration"),
-                                          userId,
-                                          companyId
-                                          )
+                        run_event_ocr_exe(
+                            screenshot_url,
+                            ocr_event.get("event_id"), 
+                            ocr_event.get("timestamp"), 
+                            ocr_event.get("duration"),
+                            userId,
+                            companyId
+                        )
 
                 self.run_eventscreenshot_cleaner(events[-1].get('timestamp'), userId, companyId, "yes")
 
@@ -1735,7 +1738,8 @@ class ScreenShotQueue(threading.Thread):
                             if record.is_ocr_text_enabled and  not record.ocr_text and record.is_event_screenshot == 0:
                                 tmp_file_path, ext = os.path.splitext(record.file_path)
                                 screenshot_file = f"{tmp_file_path}_ocr.png"
-                                server_url = "http://localhost:7600/screenshot/update_ocr_text"
+                                base_url = get_active_server_url()
+                                server_url = f"{base_url}/screenshot/update_ocr_text"
                                 file_location = get_running_path()
                                 if DEVELOPMENT_MODE == 0:
                                     sd_ocr_activity_exe = os.path.join(file_location, "sd-ocr-activity.exe")
