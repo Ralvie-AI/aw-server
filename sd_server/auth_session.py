@@ -72,9 +72,11 @@ class AuthSessionStore:
             self._expires_at = time.time() + AUTH_SESSION_TTL_S
 
         return {
+            "client": "sundial",
             "state": local_code,
-            "code_challenge": code_challenge,
             "redirect_uri": redirect_uri,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
         }
 
     def consume_for_callback(self, returned_local_code: str):
